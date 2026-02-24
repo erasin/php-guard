@@ -1,0 +1,21 @@
+[package]
+name = "php-guard-cli"
+version = "0.1.0"
+edition = "2021"
+authors = ["erasin <erasinoo@gmail.com>"]
+description = "CLI tool for PHP-Guard PHP source code encryption"
+license = "MIT"
+
+[[bin]]
+name = "php-guard"
+path = "src/main.rs"
+
+[dependencies]
+php-guard = { path = "../.." }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+anyhow = "1"
+colored = "2"
+rand = "0.8"
+walkdir = "2"

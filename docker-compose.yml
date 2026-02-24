@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # PHP 7.4 构建
+  build-php74:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "7.4"
+    volumes:
+      - ./dist:/dist
+    command: >
+      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php74.so &&
+             cp /build/target/release/php-guard /dist/php-guard || true"
+
+  # PHP 8.0 构建
+  build-php80:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "8.0"
+    volumes:
+      - ./dist:/dist
+    command: >
+      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php80.so"
+
+  # PHP 8.1 构建
+  build-php81:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "8.1"
+    volumes:
+      - ./dist:/dist
+    command: >
+      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php81.so"
+
+  # PHP 8.2 构建
+  build-php82:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "8.2"
+    volumes:
+      - ./dist:/dist
+    command: >
+      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php82.so"
+
+  # PHP 8.3 构建
+  build-php83:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "8.3"
+    volumes:
+      - ./dist:/dist
+    command: >
+      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php83.so"
+
+  # PHP 8.4 构建
+  build-php84:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "8.4"
+    volumes:
+      - ./dist:/dist
+    command: >
+      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php84.so"
+
+  # 测试环境
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PHP_VERSION: "8.3"
+    volumes:
+      - ./test:/test
+    working_dir: /test
+    command: php -d extension=php_guard -r "echo php_guard_version() . PHP_EOL;"
+
+  # 一键构建所有版本
+  build-all:
+    image: docker:cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app
+    working_dir: /app
+    command: >
+      sh -c "
+        docker-compose build build-php74 &&
+        docker-compose build build-php80 &&
+        docker-compose build build-php81 &&
+        docker-compose build build-php82 &&
+        docker-compose build build-php83 &&
+        docker-compose build build-php84 &&
+        echo 'All builds completed!'
+      "
