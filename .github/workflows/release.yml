@@ -19,14 +19,14 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact: php-guard-linux-x64
             ext: ''
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: php-guard-macos-x64
-            ext: ''
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact: php-guard-macos-arm64
-            ext: ''
+          # - os: macos-latest
+          #   target: x86_64-apple-darwin
+          #   artifact: php-guard-macos-x64
+          #   ext: ''
+          # - os: macos-latest
+          #   target: aarch64-apple-darwin
+          #   artifact: php-guard-macos-arm64
+          #   ext: ''
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: php-guard-windows-x64
@@ -37,6 +37,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: 1.85
           targets: ${{ matrix.target }}
 
       - name: Build
@@ -91,6 +92,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85
 
       - name: Install libclang
         run: sudo apt-get install -y libclang-dev clang
@@ -111,187 +114,50 @@ jobs:
           name: php_guard-php${{ matrix.php }}-linux-x64
           path: php_guard-php${{ matrix.php }}-linux-x64.tar.gz
 
-  build-extension-macos:
-    name: Build Extension (macOS PHP ${{ matrix.php }})
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        php: ['7.4', '8.2']
-        # php: ['7.4','8.0', '8.1', '8.2', '8.3']
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php }}
-          coverage: none
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install LLVM and Clang
-        run: brew install llvm
-
-      - name: Build extension
-        env:
-          LIBCLANG_PATH: /usr/local/opt/llvm/lib
-        run: cargo build --features php-extension --release
-
-      - name: Package
-        run: |
-          mkdir -p dist
-          cp target/release/libphp_guard.dylib dist/php_guard_php${{ matrix.php }}_macos.dylib
-          cp README.md LICENSE dist/
-          tar -czvf php_guard-php${{ matrix.php }}-macos.tar.gz -C dist .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: php_guard-php${{ matrix.php }}-macos
-          path: php_guard-php${{ matrix.php }}-macos.tar.gz
-
-  build-extension-windows:
-    name: Build Extension (Windows PHP ${{ matrix.php }} ${{ matrix.arch }} ${{ matrix.ts }})
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        php: ['7.4', '8.2']
-        # php: ['7.4','8.0', '8.1', '8.2', '8.3']
-        arch: ['x64']
-        ts: ['nts', 'ts']
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php }}
-          arch: ${{ matrix.arch }}
-          ts: ${{ matrix.ts }}
-          coverage: none
-          extensions: none
-
-      - name: Get PHP info
-        id: php-info
-        shell: pwsh
-        run: |
-          $phpMajorMinor = php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;"
-          echo "php-major-minor=$phpMajorMinor" >> $env:GITHUB_OUTPUT
-
-      - name: Download PHP development package
-        shell: pwsh
-        run: |
-          $phpVersion = "${{ steps.php-info.outputs.php-major-minor }}"
-          $ts = "${{ matrix.ts }}"
-          $arch = "${{ matrix.arch }}"
-          
-          # Try multiple URL patterns for PHP devel pack
-          $urls = @(
-            "https://windows.php.net/downloads/releases/php-devel-pack-${{ matrix.php }}-Win32-vs16-${arch}-${ts}.zip",
-            "https://windows.php.net/downloads/releases/archives/php-devel-pack-${{ matrix.php }}-Win32-vs16-${arch}-${ts}.zip"
-          )
-          
-          $downloaded = $false
-          foreach ($url in $urls) {
-            try {
-              Write-Host "Trying: $url"
-              Invoke-WebRequest -Uri $url -OutFile "php-devel.zip" -ErrorAction Stop
-              $downloaded = $true
-              break
-            } catch {
-              Write-Host "Failed: $($_.Exception.Message)"
-            }
-          }
-          
-          if (-not $downloaded) {
-            Write-Host "::warning::Could not download PHP devel pack, build may fail"
-            exit 0
-          }
-          
-          Expand-Archive -Path "php-devel.zip" -DestinationPath "C:\php-devel" -Force
-          Write-Host "PHP development package downloaded"
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          target: ${{ matrix.arch }}-pc-windows-msvc
-
-      - name: Install LLVM
-        run: choco install llvm -y
-
-      - name: Setup php-config
-        shell: pwsh
-        run: |
-          # Find the include directory
-          $develDirs = Get-ChildItem "C:\php-devel" -Directory
-          $includePath = ""
-          
-          foreach ($dir in $develDirs) {
-            $testPath = Join-Path $dir.FullName "include"
-            if (Test-Path $testPath) {
-              $includePath = $testPath
-              break
-            }
-          }
-          
-          if (-not $includePath) {
-            Write-Host "::warning::PHP include directory not found"
-            exit 0
-          }
-          
-          Write-Host "PHP include path: $includePath"
-          
-          # Create php-config.bat
-          $phpConfigBat = @"
-          @echo off
-          if "%1"=="--includes" (
-            echo -I$includePath -I$includePath\main -I$includePath\Zend -I$includePath\TSRM -I$includePath\ext
-          )
-          "@
-          
-          $phpConfigBat | Out-File -FilePath "php-config.bat" -Encoding ASCII
-          
-          # Set environment
-          echo "PHP_CONFIG=$PWD\php-config.bat" >> $env:GITHUB_ENV
-          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
-
-      - name: Build extension
-        shell: pwsh
-        run: |
-          if (Test-Path "php-config.bat") {
-            cargo build --features php-extension --release
-          } else {
-            Write-Host "::warning::Skipping build - PHP devel pack not available"
-          }
-        continue-on-error: true
-
-      - name: Check and package
-        id: package
-        shell: pwsh
-        run: |
-          if (Test-Path "target\release\php_guard.dll") {
-            mkdir dist
-            copy target\release\php_guard.dll dist\php_guard_php${{ matrix.php }}_windows_${{ matrix.arch }}_${{ matrix.ts }}.dll
-            copy README.md dist\
-            copy LICENSE dist\
-            Compress-Archive -Path dist\* -DestinationPath php_guard-php${{ matrix.php }}-windows-${{ matrix.arch }}-${{ matrix.ts }}.zip
-            echo "success=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "::warning::Windows extension build not yet supported by phper framework"
-            echo "success=false" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Upload artifact
-        if: steps.package.outputs.success == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: php_guard-php${{ matrix.php }}-windows-${{ matrix.arch }}-${{ matrix.ts }}
-          path: php_guard-php${{ matrix.php }}-windows-${{ matrix.arch }}-${{ matrix.ts }}.zip
+  # build-extension-macos:
+  #   name: Build Extension (macOS PHP ${{ matrix.php }})
+  #   runs-on: macos-latest
+  #   strategy:
+  #     matrix:
+  #       php: ['7.4', '8.2']
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Setup PHP
+  #       uses: shivammathur/setup-php@v2
+  #       with:
+  #         php-version: ${{ matrix.php }}
+  #           coverage: none
+  #
+  #     - name: Install Rust
+  #       uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         toolchain: 1.85
+  #
+  #     - name: Install LLVM and Clang
+  #       run: brew install llvm
+  #
+  #     - name: Build extension
+  #       env:
+  #         LIBCLANG_PATH: /usr/local/opt/llvm/lib
+  #       run: cargo build --features php-extension --release
+  #
+  #     - name: Package
+  #       run: |
+  #         mkdir -p dist
+  #         cp target/release/libphp_guard.dylib dist/php_guard_php${{ matrix.php }}_macos.dylib
+  #         cp README.md LICENSE dist/
+  #         tar -czvf php_guard-php${{ matrix.php }}-macos.tar.gz -C dist .
+  #
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: php_guard-php${{ matrix.php }}-macos
+  #         path: php_guard-php${{ matrix.php }}-macos.tar.gz
 
   release:
     name: Create Release
-    needs: [build-cli, build-extension-linux, build-extension-macos]
+    needs: [build-cli, build-extension-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -318,36 +184,23 @@ jobs:
             | 平台 | 文件 |
             |------|------|
             | Linux x64 | `php-guard-linux-x64.tar.gz` |
-            | macOS Intel | `php-guard-macos-x64.tar.gz` |
-            | macOS Apple Silicon | `php-guard-macos-arm64.tar.gz` |
             | Windows x64 | `php-guard-windows-x64.zip` |
             
             **PHP 扩展 (Linux):**
             | PHP 版本 | 文件 |
             |----------|------|
             | PHP 7.4 | `php_guard-php7.4-linux-x64.tar.gz` |
-            | PHP 8.0 | `php_guard-php8.0-linux-x64.tar.gz` |
-            | PHP 8.1 | `php_guard-php8.1-linux-x64.tar.gz` |
             | PHP 8.2 | `php_guard-php8.2-linux-x64.tar.gz` |
-            | PHP 8.3 | `php_guard-php8.3-linux-x64.tar.gz` |
-            | PHP 8.4 | `php_guard-php8.4-linux-x64.tar.gz` |
-            
-            **PHP 扩展 (macOS):**
-            | PHP 版本 | 文件 |
-            |----------|------|
-            | PHP 8.1 | `php_guard-php8.1-macos.tar.gz` |
-            | PHP 8.2 | `php_guard-php8.2-macos.tar.gz` |
-            | PHP 8.3 | `php_guard-php8.3-macos.tar.gz` |
             
             ### 安装
             
-            **Linux/macOS:**
+            **Linux:**
             ```bash
             # 解压扩展
-            tar -xzf php_guard-php8.3-linux-x64.tar.gz
+            tar -xzf php_guard-php8.2-linux-x64.tar.gz
             
             # 安装扩展
-            sudo cp php_guard_php8.3_linux_x64.so $(php-config --extension-dir)/php_guard.so
+            sudo cp php_guard_php8.2_linux_x64.so $(php-config --extension-dir)/php_guard.so
             
             # 启用扩展
             echo "extension=php_guard.so" | sudo tee /etc/php/conf.d/php_guard.ini

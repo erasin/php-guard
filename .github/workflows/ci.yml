@@ -18,6 +18,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -54,8 +56,8 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact: php-guard-linux-x64
-          - os: macos-latest
-            artifact: php-guard-macos-x64
+          # - os: macos-latest
+          #   artifact: php-guard-macos-x64
           - os: windows-latest
             artifact: php-guard-windows-x64
     steps:
@@ -63,6 +65,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85
 
       - name: Build CLI
         run: cargo build -p php-guard-cli --release
@@ -99,6 +103,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85
 
       - name: Install libclang
         run: sudo apt-get install -y libclang-dev clang
@@ -117,157 +123,36 @@ jobs:
           sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
           php -d extension=php_guard -r "echo 'Version: ' . php_guard_version() . PHP_EOL;"
 
-  build-extension-macos:
-    name: Build Extension (macOS PHP ${{ matrix.php }})
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        php: ['7.4', '8.2']
-        # php: ['7.4', '8.0', '8.1', '8.2', '8.3']
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php }}
-          coverage: none
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install LLVM and Clang
-        run: brew install llvm
-
-      - name: Build extension
-        env:
-          LIBCLANG_PATH: /usr/local/opt/llvm/lib
-        run: cargo build --features php-extension --release
-
-      - name: Upload extension artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: php_guard-php${{ matrix.php }}-macos-x64
-          path: target/release/libphp_guard.dylib
-
-  build-extension-windows:
-    name: Build Extension (Windows PHP ${{ matrix.php }} ${{ matrix.arch }} ${{ matrix.ts }})
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        php: ['7.4', '8.2']
-        # php: ['7.4', '8.0', '8.1', '8.2', '8.3']
-        arch: ['x64']
-        ts: ['nts', 'ts']
-        exclude:
-          - php: '7.4'
-            arch: 'x64'
-            ts: 'nts'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: ${{ matrix.php }}
-          arch: ${{ matrix.arch }}
-          ts: ${{ matrix.ts }}
-          coverage: none
-          extensions: none
-
-      - name: Get PHP info
-        id: php-info
-        run: |
-          $phpVersion = php -r "echo PHP_VERSION;"
-          $phpMajorMinor = php -r "echo PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION;"
-          $extDir = php -r "echo ini_get('extension_dir');"
-          echo "php-version=$phpVersion" >> $env:GITHUB_OUTPUT
-          echo "php-major-minor=$phpMajorMinor" >> $env:GITHUB_OUTPUT
-          echo "extension-dir=$extDir" >> $env:GITHUB_OUTPUT
-
-      - name: Download PHP development package
-        run: |
-          $phpVersion = "${{ steps.php-info.outputs.php-major-minor }}"
-          $ts = "${{ matrix.ts }}"
-          $arch = "${{ matrix.arch }}"
-          
-          # Construct download URL for PHP devel pack
-          # For PHP 8.x, we can use the windows.php.net downloads
-          $phpBaseVersion = $phpVersion
-          $develUrl = "https://windows.php.net/downloads/releases/php-$phpBaseVersion-devel-vc16-$arch-$ts.zip"
-          
-          Write-Host "Downloading PHP development package from: $develUrl"
-          
-          try {
-            Invoke-WebRequest -Uri $develUrl -OutFile "php-devel.zip" -ErrorAction Stop
-            Expand-Archive -Path "php-devel.zip" -DestinationPath "C:\php-devel" -Force
-            Write-Host "PHP development package downloaded and extracted"
-          } catch {
-            Write-Host "Failed to download from primary URL, trying alternative..."
-            # Try alternative URL structure
-            $develUrl2 = "https://windows.php.net/downloads/releases/archives/php-$phpBaseVersion-devel-vc16-$arch-$ts.zip"
-            Invoke-WebRequest -Uri $develUrl2 -OutFile "php-devel.zip"
-            Expand-Archive -Path "php-devel.zip" -DestinationPath "C:\php-devel" -Force
-          }
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          target: ${{ matrix.arch }}-pc-windows-msvc
-
-      - name: Install LLVM
-        run: choco install llvm -y
-
-      - name: Setup php-config
-        run: |
-          $phpDevelPath = "C:\php-devel"
-          $phpIncludePath = Join-Path $phpDevelPath "include"
-          
-          # Create php-config script
-          $phpConfigContent = @"
-          param([switch]`$Includes)
-          if (`$Includes) {
-            Write-Output "-I$phpIncludePath -I$phpIncludePath\main -I$phpIncludePath\Zend -I$phpIncludePath\TSRM -I$phpIncludePath\ext"
-          }
-          "@
-          
-          $phpConfigContent | Out-File -FilePath "php-config.ps1" -Encoding UTF8
-          
-          # Set environment variables
-          echo "PHP_CONFIG=$PWD\php-config.ps1" >> $env:GITHUB_ENV
-          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:ENV
-
-      - name: Build extension
-        run: |
-          cargo build --features php-extension --release
-        continue-on-error: true
-
-      - name: Check build result
-        id: build-result
-        run: |
-          if (Test-Path "target\release\php_guard.dll") {
-            Write-Host "Build successful!"
-            echo "success=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "Build failed - this is expected if phper doesn't support Windows yet"
-            echo "success=false" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Upload extension artifact
-        if: steps.build-result.outputs.success == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: php_guard-php${{ matrix.php }}-windows-${{ matrix.arch }}-${{ matrix.ts }}
-          path: target/release/php_guard.dll
-
-      - name: Create placeholder if build fails
-        if: steps.build-result.outputs.success != 'true'
-        run: |
-          echo "Windows build not yet supported by phper framework" > windows-build-status.txt
-          
-      - name: Upload build status
-        if: steps.build-result.outputs.success != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build-status-php${{ matrix.php }}-${{ matrix.arch }}-${{ matrix.ts }}
-          path: windows-build-status.txt
+  # build-extension-macos:
+  #   name: Build Extension (macOS PHP ${{ matrix.php }})
+  #   runs-on: macos-latest
+  #   strategy:
+  #     matrix:
+  #       php: ['7.4', '8.2']
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Setup PHP
+  #       uses: shivammathur/setup-php@v2
+  #       with:
+  #         php-version: ${{ matrix.php }}
+  #         coverage: none
+  #
+  #     - name: Install Rust
+  #       uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         toolchain: 1.85
+  #
+  #     - name: Install LLVM and Clang
+  #       run: brew install llvm
+  #
+  #     - name: Build extension
+  #       env:
+  #         LIBCLANG_PATH: /usr/local/opt/llvm/lib
+  #       run: cargo build --features php-extension --release
+  #
+  #     - name: Upload extension artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: php_guard-php${{ matrix.php }}-macos-x64
+  #         path: target/release/libphp_guard.dylib

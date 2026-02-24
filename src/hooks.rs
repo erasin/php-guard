@@ -1,9 +1,9 @@
-use std::ffi::CStr;
 use std::os::raw::c_int;
 use std::ptr;
 
 use std::os::unix::io::AsRawFd;
 
+use phper::strings::ZStr;
 use phper::sys::{self, zend_compile_file, zend_file_handle};
 
 use crate::config::HEADER;
@@ -39,15 +39,8 @@ unsafe fn get_filename_str(handle: &zend_file_handle) -> Option<String> {
         return None;
     }
 
-    let zend_str = &*handle.filename;
-    let val_ptr = zend_str.val.as_ptr();
-
-    if val_ptr.is_null() {
-        return None;
-    }
-
-    let cstr = CStr::from_ptr(val_ptr);
-    cstr.to_str().ok().map(|s| s.to_string())
+    let zstr = ZStr::from_ptr(handle.filename);
+    Some(zstr.to_string_lossy().into_owned())
 }
 
 fn should_decrypt(filename: &str) -> bool {
