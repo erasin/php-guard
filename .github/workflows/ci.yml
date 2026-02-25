@@ -39,6 +39,9 @@ jobs:
           path: target
           key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Generate config
+        run: bash scripts/generate-key.sh
+
       - name: Run tests
         run: cargo test
 
@@ -138,6 +141,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
+      - name: Generate config
+        run: bash scripts/generate-key.sh
+
       - name: Build extension
         env:
           CC: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
@@ -178,6 +184,9 @@ jobs:
   #
   #     - name: Install LLVM and Clang
   #       run: brew install llvm
+  #
+  #     - name: Generate config
+  #       run: bash scripts/generate-key.sh
   #
   #     - name: Build extension
   #       env:

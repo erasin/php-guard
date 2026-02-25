@@ -134,25 +134,45 @@ struct Config {
 
 ```
 php-guard/
+├── build.rs                # 构建脚本（自动生成配置）
 ├── Cargo.toml              # Rust 项目配置
 ├── src/
 │   ├── lib.rs              # PHP 扩展入口
+│   ├── config.rs           # 配置（自动生成）
 │   ├── crypto.rs           # 加密/解密算法
 │   ├── file_handler.rs     # 文件处理
-│   └── config.rs           # 配置管理
-├── tools/
-│   └── php-guard.php       # PHP 加密工具脚本
+│   ├── hooks.rs            # PHP Hook 机制
+│   └── php_extension.rs    # PHP 扩展注册
+├── crates/
+│   └── php-guard-cli/      # Rust CLI 工具
+├── scripts/
+│   ├── generate-key.sh     # 密钥生成 (Linux/macOS)
+│   └── generate-key.bat    # 密钥生成 (Windows)
+├── .php-guard/
+│   └── config.env          # 密钥配置（不提交）
 ├── documents/
-│   └── ARCHITECTURE.md     # 架构文档
+│   ├── ARCHITECTURE.md     # 架构文档
+│   ├── USAGE.md            # 使用指南
+│   └── REFACTORING_REPORT.md # 重构报告
 └── README.md               # 使用说明
 ```
 
 ## 安全考虑
 
-1. **密钥保护** - 密钥编译在扩展中，建议自定义修改
+1. **密钥保护** 
+   - 密钥在编译时生成，存储在 `.php-guard/config.env`
+   - 配置文件已添加到 `.gitignore`，防止泄露
+   - 建议设置文件权限：`chmod 600 .php-guard/config.env`
+
 2. **文件头定制** - 使用自定义文件头增加识别难度
+
 3. **算法简单** - 出于性能考虑，算法较简单但不易被逆向
-4. **建议** - 仅加密核心业务代码，减少暴露面
+
+4. **建议** 
+   - 仅加密核心业务代码，减少暴露面
+   - 不同环境使用不同密钥
+   - 定期更换密钥
+   - 安全备份配置文件
 
 ## 性能特性
 

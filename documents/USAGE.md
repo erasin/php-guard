@@ -4,10 +4,10 @@
 
 1. [快速开始](#快速开始)
 2. [安装方式](#安装方式)
-3. [CLI 工具](#cli-工具)
-4. [加密文件](#加密文件)
-5. [运行加密文件](#运行加密文件)
-6. [配置说明](#配置说明)
+3. [配置管理](#配置管理)
+4. [CLI 工具](#cli-工具)
+5. [加密文件](#加密文件)
+6. [运行加密文件](#运行加密文件)
 7. [PHP API](#php-api)
 8. [Docker 构建](#docker-构建)
 9. [常见问题](#常见问题)
@@ -41,10 +41,22 @@ sudo cp php_guard_php8.3_linux_x64.so $(php-config --extension-dir)/php_guard.so
 git clone https://github.com/yourname/php-guard.git
 cd php-guard
 
-# 使用 Makefile 快速构建
-make build-cli        # 构建 CLI 工具
-make build-release    # 构建 PHP 扩展
-make install          # 安装扩展
+# 1. 生成密钥配置
+./scripts/generate-key.sh  # Linux/macOS
+# 或
+.\scripts\generate-key.bat  # Windows
+
+# 2. 构建扩展
+make build-release
+
+# 3. 安装扩展
+make install
+
+# 4. 构建 CLI 工具
+make build-cli
+
+# 5. 加密文件
+make encrypt F=src/
 ```
 
 ---
@@ -76,6 +88,9 @@ sudo apt-get install -y php-dev php-cli libclang-dev clang
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source ~/.cargo/env
 
+# 生成配置
+./scripts/generate-key.sh
+
 # 编译
 make build-release
 ```
@@ -86,9 +101,24 @@ make build-release
 # 安装依赖
 brew install php llvm
 
+# 生成配置
+./scripts/generate-key.sh
+
 # 编译
 export LIBCLANG_PATH=/usr/local/opt/llvm/lib
 make build-release
+```
+
+#### Windows
+
+```cmd
+# 使用 WSL (推荐)
+wsl bash scripts/generate-key.sh
+wsl make build-release
+
+# 或使用 Git Bash
+bash scripts/generate-key.sh
+cargo build --features php-extension --release
 ```
 
 ### 方式三：Docker 构建
@@ -103,9 +133,84 @@ docker build --build-arg PHP_VERSION=8.3 -t php-guard .
 
 ---
 
+## 配置管理
+
+### 生成配置
+
+首次使用需要生成加密密钥和头部标识：
+
+**Linux/macOS:**
+```bash
+./scripts/generate-key.sh
+```
+
+**Windows:**
+```cmd
+.\scripts\generate-key.bat
+```
+
+生成的配置文件位于 `.php-guard/config.env`，包含：
+
+```bash
+# PHP-Guard 配置文件
+export PHP_GUARD_KEY="a5c31b44b3ba19388fa082bbe1725c15ddd7319a3daca6c7451adec42cca6009"
+export PHP_GUARD_HEADER="ca167d2f4529a4fa6168a939ad9d562e"
+```
+
+### 配置说明
+
+- `PHP_GUARD_KEY`: 256位加密密钥（32字节，64个十六进制字符）
+- `PHP_GUARD_HEADER`: 128位文件头部标识（16字节，32个十六进制字符）
+
+### 自动配置
+
+构建时 `build.rs` 会自动：
+
+1. 检查 `.php-guard/config.env` 是否存在
+2. 如果存在，读取配置
+3. 如果不存在，生成随机配置并保存
+4. 生成 Rust 代码到 `$OUT_DIR/config_generated.rs`
+
+### 安全注意事项
+
+⚠️ **重要提示:**
+
+1. **不要提交配置文件**
+   - `.php-guard/` 目录已添加到 `.gitignore`
+   - 确保不会意外提交
+
+2. **备份配置文件**
+   - 在安全的地方备份 `.php-guard/config.env`
+   - 丢失配置将无法解密已加密的文件
+
+3. **生产环境配置**
+   - 使用不同的密钥
+   - 限制配置文件访问权限：`chmod 600 .php-guard/config.env`
+   - 定期更换密钥
+
+### 更换密钥
+
+```bash
+# 1. 生成新密钥
+./scripts/generate-key.sh
+
+# 2. 重新构建扩展
+make build-release
+
+# 3. 重新安装扩展
+make install
+
+# 4. 重新加密所有 PHP 文件
+make encrypt F=src/
+```
+
+⚠️ **注意:** 更换密钥后，旧的加密文件将无法解密！
+
+---
+
 ## CLI 工具
 
-PHP-Guard 提供了统一的 Rust CLI 工具 `php-guard`。
+PHP-Guard 提供了简洁的 Rust CLI 工具。
 
 ### 构建 CLI
 
@@ -118,90 +223,50 @@ cargo build -p php-guard-cli --release
 ### 命令概览
 
 ```bash
-php-guard --help
+./target/release/php-guard-cli --help
 ```
 
 | 命令 | 说明 |
 |------|------|
-| `init` | 初始化配置文件 |
-| `generate-key` | 生成随机密钥 |
-| `verify` | 验证配置一致性 |
-| `encrypt` | 加密文件 |
-| `check` | 检查加密状态 |
-| `build` | 构建 PHP 扩展 |
-
-### 初始化配置
-
-```bash
-# 创建默认配置文件
-php-guard init
-
-# 生成的配置文件: php-guard.toml
-```
-
-### 生成密钥
-
-```bash
-# 生成默认长度密钥 (header: 12 bytes, key: 16 bytes)
-php-guard generate-key
-
-# 指定长度
-php-guard generate-key --header-length 16 --key-length 32
-
-# 保存到配置文件
-php-guard generate-key --output php-guard.toml
-```
-
-### 验证配置
-
-```bash
-# 验证 src/config.rs 和 tools/php-guard.php 配置一致性
-php-guard verify
-
-# 指定文件路径
-php-guard verify --rust-config src/config.rs --php-config tools/php-guard.php
-```
+| `encrypt` | 加密文件或目录 |
+| `check` | 检查文件加密状态 |
 
 ### 加密文件
 
 ```bash
 # 加密单个文件
-php-guard encrypt example.php
+./target/release/php-guard-cli encrypt example.php
 
 # 加密目录
-php-guard encrypt src/
+./target/release/php-guard-cli encrypt src/
 
 # 加密多个目标
-php-guard encrypt app/ config/ routes/
+./target/release/php-guard-cli encrypt app/ config/ routes/
 
 # 指定输出目录
-php-guard encrypt src/ --output dist/
-
-# 指定配置文件
-php-guard encrypt src/ --config php-guard.toml
+./target/release/php-guard-cli encrypt src/ --output dist/
 ```
 
 ### 检查加密状态
 
 ```bash
 # 检查单个文件
-php-guard check example.php
+./target/release/php-guard-cli check example.php
 
 # 检查目录
-php-guard check src/
+./target/release/php-guard-cli check src/
 ```
 
-### 构建扩展
+### 使用 Makefile
 
 ```bash
-# 开发模式构建
-php-guard build
+# 加密文件
+make encrypt F=example.php
+make encrypt F=src/
 
-# 发布模式构建
-php-guard build --release
-
-# 指定 php-config 路径
-php-guard build --php-config /usr/bin/php-config8.3
+# 检查文件
+make check F=example.php
+make check F=src/
 ```
 
 ---
@@ -212,26 +277,24 @@ php-guard build --php-config /usr/bin/php-config8.3
 
 ```bash
 # 加密单个文件
-php-guard encrypt example.php
+./target/release/php-guard-cli encrypt example.php
 
 # 加密目录
-php-guard encrypt src/
+./target/release/php-guard-cli encrypt src/
 
 # 输出到指定目录
-php-guard encrypt src/ --output dist/
+./target/release/php-guard-cli encrypt src/ --output dist/
 ```
 
-### 使用 PHP 工具
+### 使用 Makefile
 
 ```bash
-# 加密单个文件
-php tools/php-guard.php encrypt example.php
-
-# 加密目录
-php tools/php-guard.php encrypt src/
+# 加密文件或目录
+make encrypt F=example.php
+make encrypt F=src/
 
 # 检查加密状态
-php tools/php-guard.php check example.php
+make check F=src/
 ```
 
 ### 使用 PHP 函数
@@ -269,71 +332,6 @@ sudo systemctl restart php-fpm
 
 ---
 
-## 配置说明
-
-### 使用 CLI 生成配置
-
-```bash
-# 生成密钥并输出 Rust 和 PHP 格式
-php-guard generate-key
-```
-
-输出示例：
-
-```
-=== Rust (src/config.rs) ===
-pub const HEADER: &[u8] = &[
-    0x4e, 0xfc, 0x98, 0xbe,
-    0x1e, 0x5c, 0x69, 0xaa,
-    0x6c, 0x03, 0x62, 0x23,
-];
-
-pub const KEY: &[u8] = &[
-    0xc8, 0x1d, 0xcf, 0xa7,
-    0xed, 0xe3, 0xdc, 0xd9,
-    0x8d, 0xcf, 0x2a, 0x04,
-    0xda, 0xb4, 0x2e, 0x22,
-];
-
-=== PHP (tools/php-guard.php) ===
-const HEADER = [
-    0x4e, 0xfc, 0x98, 0xbe,
-    0x1e, 0x5c, 0x69, 0xaa,
-    0x6c, 0x03, 0x62, 0x23,
-];
-
-const KEY = [
-    0xc8, 0x1d, 0xcf, 0xa7,
-    0xed, 0xe3, 0xdc, 0xd9,
-    0x8d, 0xcf, 0x2a, 0x04,
-    0xda, 0xb4, 0x2e, 0x22,
-];
-```
-
-### 手动配置
-
-1. 编辑 `src/config.rs` 中的 `HEADER` 和 `KEY`
-2. 同步修改 `tools/php-guard.php` 中对应的常量
-3. 运行 `php-guard verify` 验证配置一致性
-4. 重新编译：`make build-release`
-
-### 使用 Makefile
-
-```bash
-# 生成密钥
-make generate-key
-
-# 验证配置
-make verify
-
-# 使用 CLI 工具
-make cli-key        # 生成密钥
-make cli-verify     # 验证配置
-make cli-encrypt F=src/   # 加密
-```
-
----
-
 ## PHP API
 
 ### php_guard_encode()
@@ -344,6 +342,14 @@ make cli-encrypt F=src/   # 加密
 string php_guard_encode(string $content)
 ```
 
+**示例:**
+```php
+<?php
+$content = "<?php echo 'Hello, World!';";
+$encrypted = php_guard_encode($content);
+file_put_contents('encrypted.php', $encrypted);
+```
+
 ### php_guard_is_encrypted()
 
 检查内容是否已加密。
@@ -352,12 +358,29 @@ string php_guard_encode(string $content)
 bool php_guard_is_encrypted(string $content)
 ```
 
+**示例:**
+```php
+<?php
+$content = file_get_contents('some.php');
+if (php_guard_is_encrypted($content)) {
+    echo "文件已加密";
+} else {
+    echo "文件未加密";
+}
+```
+
 ### php_guard_version()
 
 获取扩展版本号。
 
 ```php
 string php_guard_version()
+```
+
+**示例:**
+```php
+<?php
+echo php_guard_version(); // "0.1.0"
 ```
 
 ---
@@ -419,14 +442,38 @@ php -d extension=php_guard -v 2>&1
 ### Q: 加密文件无法运行？
 
 1. 确认扩展已加载：`php -m | grep php_guard`
-2. 验证配置一致性：`php-guard verify`
+2. 确认使用了相同的密钥配置
 3. 检查 PHP 版本兼容性
+4. 确认文件确实被加密：`make check F=file.php`
+
+### Q: 密钥丢失了怎么办？
+
+如果密钥丢失：
+- 旧加密文件无法解密
+- 需要使用原始源文件重新加密
+- 建议定期备份配置文件
+
+### Q: 如何更换密钥？
+
+```bash
+# 1. 生成新密钥
+./scripts/generate-key.sh
+
+# 2. 重新构建扩展
+make build-release
+make install
+
+# 3. 重新加密所有文件
+make encrypt F=src/
+```
+
+⚠️ **注意:** 更换密钥后，旧加密文件将无法使用！
 
 ### Q: Windows 支持？
 
 目前 phper 框架不支持 Windows 原生编译。推荐方案：
 
-1. **WSL** - 在 WSL 中编译和使用
+1. **WSL** - 在 WSL 中编译和使用（推荐）
 2. **Docker** - 使用 Docker 构建 Linux 版本
 3. **预编译版本** - 从 Releases 下载（如果提供）
 
@@ -442,6 +489,20 @@ php -d extension=php_guard -v 2>&1
 - 实测影响：< 1%
 - 建议：配合 OPcache 使用
 
+### Q: 如何确认配置正确？
+
+```bash
+# 1. 检查配置文件存在
+ls -la .php-guard/config.env
+
+# 2. 检查配置内容
+cat .php-guard/config.env
+
+# 3. 重新构建确保配置生效
+make clean
+make build-release
+```
+
 ---
 
 ## 最佳实践
@@ -456,38 +517,87 @@ cp -r src/ src_backup/
 git add . && git commit -m "Before encryption"
 ```
 
-### 2. 选择性加密
+### 2. 备份配置文件
+
+```bash
+# 备份密钥配置
+cp .php-guard/config.env .php-guard/config.env.backup
+
+# 存储到安全位置
+cp .php-guard/config.env ~/secure-backup/php-guard-config.env
+```
+
+### 3. 选择性加密
 
 ```bash
 # 只加密核心业务代码
-php-guard encrypt app/Services/ app/Models/
+./target/release/php-guard-cli encrypt app/Services/ app/Models/
 
 # 跳过框架和第三方库
 ```
 
-### 3. 使用 Makefile
+### 4. 使用 Makefile
 
 ```makefile
 # 项目 Makefile
+.PHONY: encrypt deploy
+
 encrypt:
-    php-guard encrypt src/ --output dist/
+	./target/release/php-guard-cli encrypt src/ --output dist/
 
 deploy: encrypt
-    rsync -avz dist/ user@server:/var/www/app/
-
-.PHONY: encrypt deploy
+	rsync -avz dist/ user@server:/var/www/app/
 ```
 
-### 4. CI/CD 集成
+### 5. CI/CD 集成
 
 ```yaml
 # .github/workflows/deploy.yml
-- name: Encrypt PHP files
+- name: Load configuration
   run: |
-    ./php-guard encrypt src/ --output dist/
-    
+    # 从 secrets 加载配置
+    mkdir -p .php-guard
+    echo "$PHP_GUARD_CONFIG" > .php-guard/config.env
+  env:
+    PHP_GUARD_CONFIG: ${{ secrets.PHP_GUARD_CONFIG }}
+
+- name: Build extension
+  run: make build-release
+
+- name: Encrypt PHP files
+  run: make encrypt F=src/
+
 - name: Deploy
   run: rsync -avz dist/ ${{ secrets.DEPLOY_TARGET }}
+```
+
+### 6. 安全管理
+
+```bash
+# 设置配置文件权限
+chmod 600 .php-guard/config.env
+
+# 定期更换密钥（建议每季度）
+./scripts/generate-key.sh
+make clean build-release install
+make encrypt F=src/
+```
+
+### 7. 测试流程
+
+```bash
+# 1. 开发环境测试
+make build-release
+make install
+php -d extension=php_guard test.php
+
+# 2. 加密测试
+make encrypt F=test.php
+php -d extension=php_guard test.php
+
+# 3. 生产环境部署
+make encrypt F=src/
+# 部署加密文件和扩展
 ```
 
 ---
@@ -496,3 +606,14 @@ deploy: encrypt
 
 - 问题反馈：[GitHub Issues](https://github.com/yourname/php-guard/issues)
 - 功能请求：[GitHub Discussions](https://github.com/yourname/php-guard/discussions)
+- 文档：[项目文档](documents/)
+
+---
+
+## 相关文档
+
+- [架构设计](ARCHITECTURE.md) - 技术架构和原理
+- [项目重构报告](REFACTORING_REPORT.md) - 最新重构说明
+- [Windows 支持](WINDOWS_SUPPORT.md) - Windows 平台支持方案
+- [实施报告](IMPLEMENTATION_REPORT.md) - 详细实施文档
+- [WSL 测试报告](WSL_TEST_REPORT.md) - 测试验证报告
