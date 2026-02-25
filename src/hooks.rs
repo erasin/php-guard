@@ -1,9 +1,9 @@
-use std::os::raw::{c_char, c_int};
+use std::os::raw::c_int;
 use std::ptr;
 
-use std::ffi::CStr;
 use std::os::unix::io::AsRawFd;
 
+use phper::strings::ZStr;
 use phper::sys::{self, zend_compile_file, zend_file_handle};
 
 use crate::config::HEADER;
@@ -21,8 +21,10 @@ pub unsafe fn init_hooks() {
 }
 
 pub unsafe fn restore_hooks() {
-    if let Some(original) = ORIGINAL_COMPILE_FILE {
-        sys::zend_compile_file = Some(original);
+    unsafe {
+        if let Some(original) = ORIGINAL_COMPILE_FILE {
+            sys::zend_compile_file = Some(original);
+        }
     }
 }
 
@@ -30,20 +32,21 @@ unsafe fn call_original(
     file_handle: *mut zend_file_handle,
     type_: c_int,
 ) -> *mut sys::_zend_op_array {
-    match ORIGINAL_COMPILE_FILE {
-        Some(original) => original(file_handle, type_),
-        None => ptr::null_mut(),
+    unsafe {
+        match ORIGINAL_COMPILE_FILE {
+            Some(original) => original(file_handle, type_),
+            None => ptr::null_mut(),
+        }
     }
 }
 
 unsafe fn get_filename_str(handle: &zend_file_handle) -> Option<String> {
-    if handle.filename.is_null() {
-        return None;
+    unsafe {
+        match ZStr::try_from_ptr(handle.filename) {
+            Some(zstr) => Some(zstr.to_string_lossy().into_owned()),
+            None => None,
+        }
     }
-
-    // 使用 CStr 处理 *const i8 类型的 filename 字段
-    let c_str = CStr::from_ptr(handle.filename as *const c_char);
-    Some(c_str.to_string_lossy().into_owned())
 }
 
 fn should_decrypt(filename: &str) -> bool {
@@ -79,38 +82,40 @@ pub unsafe extern "C" fn php_guard_compile_file(
     type_: c_int,
 ) -> *mut sys::_zend_op_array {
     if file_handle.is_null() {
-        return call_original(file_handle, type_);
+        return unsafe { call_original(file_handle, type_) };
     }
 
-    let handle = &mut *file_handle;
+    let handle = unsafe { &mut *file_handle };
 
-    let filename = match get_filename_str(handle) {
+    let filename = match unsafe { get_filename_str(handle) } {
         Some(s) => s,
-        None => return call_original(file_handle, type_),
+        None => return unsafe { call_original(file_handle, type_) },
     };
 
     if !should_decrypt(&filename) {
-        return call_original(file_handle, type_);
+        return unsafe { call_original(file_handle, type_) };
     }
 
     let temp_file = match try_decrypt(&filename) {
         Some(f) => f,
-        None => return call_original(file_handle, type_),
+        None => return unsafe { call_original(file_handle, type_) },
     };
 
-    if !handle.handle.fp.is_null() {
-        libc::fclose(handle.handle.fp.cast());
+    if !unsafe { handle.handle.fp.is_null() } {
+        unsafe { libc::fclose(handle.handle.fp.cast()) };
     }
 
     let fd = temp_file.as_raw_fd();
-    let new_fp = libc::fdopen(fd, b"r\0".as_ptr().cast());
+    let new_fp = unsafe { libc::fdopen(fd, b"r\0".as_ptr().cast()) };
     handle.handle.fp = new_fp.cast();
 
     std::mem::forget(temp_file);
 
-    call_original(file_handle, type_)
+    unsafe { call_original(file_handle, type_) }
 }
 
 pub unsafe fn register_hooks() {
-    sys::zend_compile_file = Some(php_guard_compile_file);
+    unsafe {
+        sys::zend_compile_file = Some(php_guard_compile_file);
+    }
 }
