@@ -25,6 +25,13 @@ enum Commands {
         #[arg(required = true)]
         paths: Vec<String>,
     },
+    #[command(about = "Decrypt PHP files")]
+    Decrypt {
+        #[arg(required = true)]
+        paths: Vec<String>,
+        #[arg(short, long)]
+        output: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -36,6 +43,9 @@ fn main() -> Result<()> {
         }
         Commands::Check { paths } => {
             commands::check(&paths)?;
+        }
+        Commands::Decrypt { paths, output } => {
+            commands::decrypt(&paths, output.as_deref())?;
         }
     }
 
