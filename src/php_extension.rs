@@ -54,7 +54,7 @@ pub fn register_module() -> Module {
     module
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn php_guard_mshutdown(_type: i32, _module_number: i32) -> i32 {
     unsafe {
         hooks::restore_hooks();

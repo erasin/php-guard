@@ -70,7 +70,7 @@ fn try_decrypt(filename: &str) -> Option<std::fs::File> {
     create_temp_file_with_content(&decrypted).ok()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn php_guard_compile_file(
     file_handle: *mut zend_file_handle,
     type_: c_int,
