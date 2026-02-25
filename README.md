@@ -11,30 +11,12 @@
 
 - 🚀 **高性能** - 采用轻量级 XOR 算法，运行时性能损耗 < 1%
 - 🔒 **透明解密** - 无需修改 PHP 代码，扩展自动处理加密文件
-- 🌍 **跨平台** - 支持 Linux、macOS
+- 🌍 **跨平台** - 支持 Linux x64/ARM64、Windows x64
 - 🔧 **兼容性好** - 兼容 OPcache、Xdebug 等扩展
-- ⚙️ **可定制** - 支持自定义加密头和密钥
+- ⚙️ **安全配置** - 编译时生成密钥，确保安全性
 - 📦 **CLI 工具** - 提供统一的命令行工具
 
 ## 安装
-
-### 下载预编译版本
-
-从 [Releases](https://github.com/yourname/php-guard/releases) 页面下载：
-
-**CLI 工具:**
-- `php-guard-linux-x64.tar.gz` - Linux x64
-- `php-guard-linux-aarch64.tar.gz` - Linux ARM64
-- `php-guard-macos-x64.tar.gz` - macOS Intel
-- `php-guard-macos-arm64.tar.gz` - macOS Apple Silicon
-- `php-guard-windows-x64.zip` - Windows x64
-
-**PHP 扩展:**
-- `php_guard-php8.3-linux-x64.tar.gz` - Linux PHP 8.3 (x64)
-- `php_guard-php8.3-linux-aarch64.tar.gz` - Linux PHP 8.3 (ARM64)
-- `php_guard-php8.2-linux-x64.tar.gz` - Linux PHP 8.2 (x64)
-- `php_guard-php8.2-linux-aarch64.tar.gz` - Linux PHP 8.2 (ARM64)
-- 等等...
 
 ### 从源码编译
 
@@ -43,13 +25,20 @@
 git clone https://github.com/yourname/php-guard.git
 cd php-guard
 
-# 2. 使用 CLI 工具生成密钥
-cargo run -p php-guard-cli -- generate-key
+# 2. 生成加密密钥和配置
+./scripts/generate-key.sh  # Linux/macOS
+# 或
+.\scripts\generate-key.bat  # Windows
 
-# 3. 编译扩展
+# 3. 加载配置
+source .php-guard/config.env  # Linux/macOS
+# 或
+.\.php-guard\config.env  # Windows
+
+# 4. 编译扩展
 cargo build --features php-extension --release
 
-# 4. 安装
+# 5. 安装
 sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
 ```
 
@@ -65,49 +54,71 @@ docker run --rm -v $(pwd)/dist:/dist php-guard cp /build/target/release/libphp_g
 
 ## 快速开始
 
-### 使用 CLI 工具
+### 1. 生成配置
 
+首次使用需要生成加密密钥和头部标识：
+
+**Linux/macOS:**
 ```bash
-# 初始化配置文件
-php-guard init
-
-# 生成随机密钥
-php-guard generate-key
-
-# 验证配置一致性
-php-guard verify
-
-# 加密文件
-php-guard encrypt src/
-
-# 检查加密状态
-php-guard check src/
-
-# 构建 PHP 扩展
-php-guard build --release
+./scripts/generate-key.sh
+source .php-guard/config.env
 ```
 
-### 使用 PHP 工具
-
-```bash
-# 加密文件
-php tools/php-guard.php encrypt src/
-
-# 检查加密状态
-php tools/php-guard.php check src/
-
-# 验证配置
-php tools/verify-config.php
-
-# 生成密钥
-php tools/generate-key.php
+**Windows:**
+```cmd
+.\scripts\generate-key.bat
+.\.php-guard\config.env
 ```
 
-## 文档
+### 2. 构建 PHP 扩展
 
-- [使用指南](documents/USAGE.md) - 详细安装和使用说明
-- [架构设计](documents/ARCHITECTURE.md) - 技术架构和原理
-- [Windows 支持](documents/WINDOWS_SUPPORT.md) - Windows 平台支持方案
+```bash
+cargo build --features php-extension --release
+```
+
+### 3. 安装扩展
+
+```bash
+sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
+echo "extension=php_guard.so" | sudo tee /etc/php/conf.d/php_guard.ini
+```
+
+### 4. 加密 PHP 文件
+
+使用 CLI 工具加密文件：
+
+```bash
+# 构建CLI工具
+cargo build -p php-guard-cli --release
+
+# 加密单个文件
+./target/release/php-guard encrypt src/file.php
+
+# 加密目录
+./target/release/php-guard encrypt src/
+
+# 检查加密状态
+./target/release/php-guard check src/
+```
+
+## 工作原理
+
+1. **编译时配置**: 使用 `scripts/generate-key.sh` 生成密钥和头部标识
+2. **构建集成**: `build.rs` 在编译时读取配置并生成 Rust 代码
+3. **透明加密**: CLI 工具使用相同的密钥加密 PHP 文件
+4. **自动解密**: PHP 扩展 hook 编译过程，自动解密加密文件
+
+## 配置说明
+
+配置文件位于 `.php-guard/config.env`，包含：
+
+- `PHP_GUARD_KEY`: 256位加密密钥 (64个十六进制字符)
+- `PHP_GUARD_HEADER`: 128位文件头部标识 (32个十六进制字符)
+
+**重要提示:**
+- 请妥善保管配置文件
+- 不要将配置文件提交到版本控制系统
+- 不同环境应使用不同的配置
 
 ## PHP API
 
@@ -142,45 +153,41 @@ echo php_guard_version(); // "0.1.0"
 
 ```
 php-guard/
-├── crates/
-│   └── php-guard-cli/     # Rust CLI 工具
+├── build.rs              # 构建脚本，生成配置
 ├── src/
-│   ├── lib.rs             # 库入口
-│   ├── config.rs          # 密钥配置
-│   ├── crypto.rs          # 加密算法
-│   ├── file_handler.rs    # 文件处理
-│   ├── hooks.rs           # PHP hook
-│   └── php_extension.rs   # PHP 扩展
-├── tools/
-│   ├── php-guard.php      # PHP 加密工具
-│   ├── verify-config.php  # 配置验证
-│   └── generate-key.php   # 密钥生成
-├── .github/workflows/
-│   ├── ci.yml             # 持续集成
-│   └── release.yml        # 自动发布
-├── Dockerfile             # Docker 构建
-├── docker-compose.yml     # 多版本构建
-└── Makefile               # 便捷命令
+│   ├── lib.rs            # 库入口
+│   ├── config.rs         # 配置（自动生成）
+│   ├── crypto.rs         # 加密算法
+│   ├── file_handler.rs   # 文件处理
+│   ├── hooks.rs          # PHP hook
+│   └── php_extension.rs  # PHP 扩展
+├── crates/
+│   └── php-guard-cli/    # Rust CLI 工具
+├── scripts/
+│   ├── generate-key.sh   # 密钥生成脚本 (Linux/macOS)
+│   └── generate-key.bat  # 密钥生成脚本 (Windows)
+├── .php-guard/           # 配置目录
+│   └── config.env        # 密钥配置
+└── .github/workflows/
+    ├── ci.yml            # 持续集成
+    └── release.yml       # 自动发布
 ```
 
-## Makefile 命令
+## 安全最佳实践
 
-```bash
-make help              # 显示帮助
-make build-cli         # 构建 CLI 工具
-make build-release     # 构建扩展 (发布模式)
-make install           # 安装扩展
-make test              # 运行测试
-make verify            # 验证配置
-make generate-key      # 生成密钥
-make docker-build      # Docker 构建
-```
+1. **密钥管理**
+   - 使用强随机密钥
+   - 定期更换密钥
+   - 不同环境使用不同密钥
 
-## 注意事项
+2. **文件保护**
+   - 备份原始文件
+   - 不要提交加密文件到版本控制
+   - 限制配置文件访问权限
 
-1. **备份源码** - 加密前务必备份原始文件！
-2. **密钥安全** - 生产环境务必使用自定义密钥
-3. **选择性加密** - 建议只加密核心业务代码
+3. **选择性加密**
+   - 只加密核心业务代码
+   - 避免加密框架和库文件
 
 ## 开发
 

@@ -1,19 +1,4 @@
-pub const HEADER: &[u8] = &[
-    0x71, 0x11, 0x34, 0x78,
-    0x7e, 0x6f, 0x04, 0x6a,
-    0xdf, 0x08, 0x46, 0x1c,];
+// 配置文件由 build.rs 自动生成
+// 运行 scripts/generate-key.sh 或 scripts/generate-key.bat 生成配置
 
-pub const KEY: &[u8] = &[
-    0xcf, 0x9a, 0x37, 0xeb,
-    0x15, 0x3c, 0x03, 0x9b,
-    0xee, 0x59, 0x2f, 0xf0,
-    0xc0, 0xdd, 0xc5, 0xa2,];
-
-#[cfg(feature = "php-extension")]
-pub const MODULE_NAME: &str = env!("CARGO_PKG_NAME");
-
-#[cfg(feature = "php-extension")]
-pub const MODULE_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg(feature = "php-extension")]
-pub const MODULE_AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
+include!(concat!(env!("OUT_DIR"), "/config_generated.rs"));
