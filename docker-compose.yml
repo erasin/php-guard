@@ -8,71 +8,38 @@ services:
       dockerfile: Dockerfile
       args:
         PHP_VERSION: "7.4"
+        TARGETPLATFORM: linux/amd64
     volumes:
       - ./dist:/dist
     command: >
       sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php74.so &&
              cp /build/target/release/php-guard /dist/php-guard || true"
-
-  # PHP 8.0 构建
-  build-php80:
+             
+  # PHP 7.4 构建 (ARM64)
+  build-php74-arm64:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        PHP_VERSION: "8.0"
+        PHP_VERSION: "7.4"
+        TARGETPLATFORM: linux/arm64
     volumes:
       - ./dist:/dist
     command: >
-      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php80.so"
+      sh -c "cp /build/target/aarch64-unknown-linux-gnu/release/libphp_guard.so /dist/php_guard_php74_arm64.so || true"
 
-  # PHP 8.1 构建
-  build-php81:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        PHP_VERSION: "8.1"
-    volumes:
-      - ./dist:/dist
-    command: >
-      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php81.so"
-
-  # PHP 8.2 构建
-  build-php82:
+  # PHP 8.2 构建 (ARM64)
+  build-php82-arm64:
     build:
       context: .
       dockerfile: Dockerfile
       args:
         PHP_VERSION: "8.2"
+        TARGETPLATFORM: linux/arm64
     volumes:
       - ./dist:/dist
     command: >
-      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php82.so"
-
-  # PHP 8.3 构建
-  build-php83:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        PHP_VERSION: "8.3"
-    volumes:
-      - ./dist:/dist
-    command: >
-      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php83.so"
-
-  # PHP 8.4 构建
-  build-php84:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        PHP_VERSION: "8.4"
-    volumes:
-      - ./dist:/dist
-    command: >
-      sh -c "cp /build/target/release/libphp_guard.so /dist/php_guard_php84.so"
+      sh -c "cp /build/target/aarch64-unknown-linux-gnu/release/libphp_guard.so /dist/php_guard_php82_arm64.so || true"
 
   # 测试环境
   test:
@@ -96,10 +63,7 @@ services:
     command: >
       sh -c "
         docker-compose build build-php74 &&
-        docker-compose build build-php80 &&
-        docker-compose build build-php81 &&
-        docker-compose build build-php82 &&
-        docker-compose build build-php83 &&
-        docker-compose build build-php84 &&
+        docker-compose build build-php74-arm64 &&
+        docker-compose build build-php82-arm64 &&
         echo 'All builds completed!'
       "

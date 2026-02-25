@@ -49,16 +49,24 @@ jobs:
         run: cargo clippy -- -D warnings
 
   build-cli:
-    name: Build CLI (${{ matrix.os }})
+    name: Build CLI (${{ matrix.os }}/${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
+            arch: x64
+            target: x86_64-unknown-linux-gnu
             artifact: php-guard-linux-x64
+          - os: ubuntu-latest
+            arch: aarch64
+            target: aarch64-unknown-linux-gnu
+            artifact: php-guard-linux-aarch64
           # - os: macos-latest
           #   artifact: php-guard-macos-x64
           - os: windows-latest
+            arch: x64
+            target: x86_64-pc-windows-msvc
             artifact: php-guard-windows-x64
     steps:
       - uses: actions/checkout@v4
@@ -67,29 +75,43 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.85
+          targets: ${{ matrix.target }}
+
+      - name: Install AArch64 cross-compilation tools
+        if: matrix.arch == 'aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: Build CLI
-        run: cargo build -p php-guard-cli --release
+        env:
+          CC: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
+        run: cargo build -p php-guard-cli --release --target ${{ matrix.target }}
 
       - name: Upload CLI artifact (Unix)
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/release/php-guard
+          path: target/${{ matrix.target }}/release/php-guard
 
       - name: Upload CLI artifact (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/release/php-guard.exe
+          path: target/${{ matrix.target }}/release/php-guard.exe
 
   build-extension-linux:
-    name: Build Extension (Linux PHP ${{ matrix.php }})
+    name: Build Extension (Linux ${{ matrix.arch }} PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        include:
+          - arch: x64
+            target: x86_64-unknown-linux-gnu
+          - arch: aarch64
+            target: aarch64-unknown-linux-gnu
         php: ['7.4', '8.2']
         # php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
     steps:
@@ -105,22 +127,33 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.85
+          targets: ${{ matrix.target }}
 
       - name: Install libclang
         run: sudo apt-get install -y libclang-dev clang
 
+      - name: Install AArch64 cross-compilation tools
+        if: matrix.arch == 'aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
       - name: Build extension
-        run: cargo build --features php-extension --release
+        env:
+          CC: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
+          CARGO_TARGET_${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'AARCH64_UNKNOWN_LINUX_GNU' || '' }}_LINKER: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || '' }}
+        run: cargo build --features php-extension --release --target ${{ matrix.target }}
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
         with:
-          name: php_guard-php${{ matrix.php }}-linux-x64
-          path: target/release/libphp_guard.so
+          name: php_guard-php${{ matrix.php }}-linux-${{ matrix.arch }}
+          path: target/${{ matrix.target }}/release/libphp_guard.so
 
       - name: Test extension
+        if: matrix.arch == 'x64'  # Only test x64 for now
         run: |
-          sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
+          sudo cp target/${{ matrix.target }}/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
           php -d extension=php_guard -r "echo 'Version: ' . php_guard_version() . PHP_EOL;"
 
   # build-extension-macos:

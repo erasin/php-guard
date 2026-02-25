@@ -10,14 +10,20 @@ env:
 
 jobs:
   build-cli:
-    name: Build CLI (${{ matrix.os }})
+    name: Build CLI (${{ matrix.os }}/${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
+            arch: x64
             target: x86_64-unknown-linux-gnu
             artifact: php-guard-linux-x64
+            ext: ''
+          - os: ubuntu-latest
+            arch: aarch64
+            target: aarch64-unknown-linux-gnu
+            artifact: php-guard-linux-aarch64
             ext: ''
           # - os: macos-latest
           #   target: x86_64-apple-darwin
@@ -28,6 +34,7 @@ jobs:
           #   artifact: php-guard-macos-arm64
           #   ext: ''
           - os: windows-latest
+            arch: x64
             target: x86_64-pc-windows-msvc
             artifact: php-guard-windows-x64
             ext: '.exe'
@@ -40,7 +47,15 @@ jobs:
           toolchain: 1.85
           targets: ${{ matrix.target }}
 
+      - name: Install AArch64 cross-compilation tools
+        if: matrix.arch == 'aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
       - name: Build
+        env:
+          CC: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
         run: cargo build -p php-guard-cli --release --target ${{ matrix.target }}
 
       - name: Package (Unix)
@@ -75,10 +90,15 @@ jobs:
           path: ${{ matrix.artifact }}.zip
 
   build-extension-linux:
-    name: Build Extension (Linux PHP ${{ matrix.php }})
+    name: Build Extension (Linux ${{ matrix.arch }} PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        include:
+          - arch: x64
+            target: x86_64-unknown-linux-gnu
+          - arch: aarch64
+            target: aarch64-unknown-linux-gnu
         php: ['7.4', '8.2']
         # php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
     steps:
@@ -94,25 +114,35 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.85
+          targets: ${{ matrix.target }}
 
       - name: Install libclang
         run: sudo apt-get install -y libclang-dev clang
 
+      - name: Install AArch64 cross-compilation tools
+        if: matrix.arch == 'aarch64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
       - name: Build extension
-        run: cargo build --features php-extension --release
+        env:
+          CC: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
+          CARGO_TARGET_${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'AARCH64_UNKNOWN_LINUX_GNU' || '' }}_LINKER: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || '' }}
+        run: cargo build --features php-extension --release --target ${{ matrix.target }}
 
       - name: Package
         run: |
           mkdir -p dist
-          cp target/release/libphp_guard.so dist/php_guard_php${{ matrix.php }}_linux_x64.so
+          cp target/${{ matrix.target }}/release/libphp_guard.so dist/php_guard_php${{ matrix.php }}_linux_${{ matrix.arch }}.so
           cp README.md LICENSE dist/
-          tar -czvf php_guard-php${{ matrix.php }}-linux-x64.tar.gz -C dist .
+          tar -czvf php_guard-php${{ matrix.php }}-linux-${{ matrix.arch }}.tar.gz -C dist .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: php_guard-php${{ matrix.php }}-linux-x64
-          path: php_guard-php${{ matrix.php }}-linux-x64.tar.gz
+          name: php_guard-php${{ matrix.php }}-linux-${{ matrix.arch }}
+          path: php_guard-php${{ matrix.php }}-linux-${{ matrix.arch }}.tar.gz
 
   # build-extension-macos:
   #   name: Build Extension (macOS PHP ${{ matrix.php }})
@@ -184,13 +214,16 @@ jobs:
             | 平台 | 文件 |
             |------|------|
             | Linux x64 | `php-guard-linux-x64.tar.gz` |
+            | Linux aarch64 | `php-guard-linux-aarch64.tar.gz` |
             | Windows x64 | `php-guard-windows-x64.zip` |
             
             **PHP 扩展 (Linux):**
-            | PHP 版本 | 文件 |
-            |----------|------|
-            | PHP 7.4 | `php_guard-php7.4-linux-x64.tar.gz` |
-            | PHP 8.2 | `php_guard-php8.2-linux-x64.tar.gz` |
+            | 平台 | PHP 版本 | 文件 |
+            |------|----------|------|
+            | Linux x64 | PHP 7.4 | `php_guard-php7.4-linux-x64.tar.gz` |
+            | Linux aarch64 | PHP 7.4 | `php_guard-php7.4-linux-aarch64.tar.gz` |
+            | Linux x64 | PHP 8.2 | `php_guard-php8.2-linux-x64.tar.gz` |
+            | Linux aarch64 | PHP 8.2 | `php_guard-php8.2-linux-aarch64.tar.gz` |
             
             ### 安装
             

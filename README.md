@@ -24,13 +24,16 @@
 
 **CLI 工具:**
 - `php-guard-linux-x64.tar.gz` - Linux x64
+- `php-guard-linux-aarch64.tar.gz` - Linux ARM64
 - `php-guard-macos-x64.tar.gz` - macOS Intel
 - `php-guard-macos-arm64.tar.gz` - macOS Apple Silicon
 - `php-guard-windows-x64.zip` - Windows x64
 
 **PHP 扩展:**
-- `php_guard-php8.3-linux-x64.tar.gz` - Linux PHP 8.3
-- `php_guard-php8.2-linux-x64.tar.gz` - Linux PHP 8.2
+- `php_guard-php8.3-linux-x64.tar.gz` - Linux PHP 8.3 (x64)
+- `php_guard-php8.3-linux-aarch64.tar.gz` - Linux PHP 8.3 (ARM64)
+- `php_guard-php8.2-linux-x64.tar.gz` - Linux PHP 8.2 (x64)
+- `php_guard-php8.2-linux-aarch64.tar.gz` - Linux PHP 8.2 (ARM64)
 - 等等...
 
 ### 从源码编译
@@ -125,8 +128,8 @@ echo php_guard_version(); // "0.1.0"
 
 | 类别 | 项目 | 状态 |
 |------|------|------|
-| OS | Linux | ✅ |
-| OS | macOS | ✅ |
+| OS | Linux | ✅ (x64, ARM64) |
+| OS | macOS | ✅ (x64, Apple Silicon) |
 | OS | Windows | ⚠️ (通过 WSL 或 Docker) |
 | PHP | 7.0 - 7.4 | ✅ |
 | PHP | 8.0 - 8.5 | ✅ |

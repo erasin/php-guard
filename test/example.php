@@ -1,3 +1,2 @@
-<?php
-echo "Hello, PHP-Guard!\n";
-echo "This is a test file.\n";
+q4x~ojßF<p p0e³h§ ÈH™l}oH “H¬-wupr!Mná;Âe\h
+ êT i™ •s1aDt¦sˆ Vi}eK\"ø
