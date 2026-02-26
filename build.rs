@@ -100,7 +100,7 @@ fn generate_random_bytes(len: usize) -> Vec<u8> {
 
     // 简单的伪随机生成器（实际使用时应该用更安全的方法）
     let mut seed = timestamp as u64;
-    for i in 0..len {
+    for _i in 0..len {
         seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
         bytes.push(((seed >> 16) & 0xFF) as u8);
     }
