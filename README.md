@@ -15,6 +15,42 @@
 - 🔧 **兼容性好** - 兼容 OPcache、Xdebug 等扩展
 - ⚙️ **安全配置** - 编译时生成密钥，确保安全性
 - 📦 **CLI 工具** - 提供统一的命令行工具
+- 🧩 **模块化设计** - 核心库、扩展、CLI 分离，便于复用
+
+## 项目结构
+
+```
+php-guard/
+├── Cargo.toml              # Workspace 配置
+├── crates/
+│   ├── php-guard-core/     # 核心库 (加密/解密算法)
+│   │   ├── Cargo.toml
+│   │   ├── build.rs        # 配置生成
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── config.rs   # 配置 (自动生成)
+│   │       ├── crypto.rs   # 加密算法
+│   │       └── file_handler.rs
+│   ├── php-guard-ext/      # PHP 扩展
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── hooks.rs    # PHP hook
+│   │       └── php_extension.rs
+│   └── php-guard-cli/      # CLI 工具
+│       ├── Cargo.toml
+│       └── src/
+│           ├── main.rs
+│           └── commands.rs
+├── scripts/
+│   ├── generate-key.sh     # 密钥生成 (Linux/macOS)
+│   └── generate-key.bat    # 密钥生成 (Windows)
+├── .php-guard/
+│   └── config.env          # 密钥配置
+└── .github/workflows/
+    ├── ci.yml              # 持续集成
+    └── release.yml         # 自动发布
+```
 
 ## 安装
 
@@ -32,14 +68,12 @@ cd php-guard
 
 # 3. 加载配置
 source .php-guard/config.env  # Linux/macOS
-# 或
-.\.php-guard\config.env  # Windows
 
 # 4. 编译扩展
-cargo build --features php-extension --release
+cargo build -p php-guard-ext --release
 
 # 5. 安装
-sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
+sudo cp target/release/libphp_guard_ext.so $(php-config --extension-dir)/php_guard.so
 ```
 
 ### Docker 构建
@@ -49,7 +83,7 @@ sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.s
 docker build --build-arg PHP_VERSION=8.3 -t php-guard .
 
 # 提取编译产物
-docker run --rm -v $(pwd)/dist:/dist php-guard cp /build/target/release/libphp_guard.so /dist/
+docker run --rm -v $(pwd)/dist:/dist php-guard cp /build/target/release/libphp_guard_ext.so /dist/
 ```
 
 ## 快速开始
@@ -73,13 +107,13 @@ source .php-guard/config.env
 ### 2. 构建 PHP 扩展
 
 ```bash
-cargo build --features php-extension --release
+cargo build -p php-guard-ext --release
 ```
 
 ### 3. 安装扩展
 
 ```bash
-sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
+sudo cp target/release/libphp_guard_ext.so $(php-config --extension-dir)/php_guard.so
 echo "extension=php_guard.so" | sudo tee /etc/php/conf.d/php_guard.ini
 ```
 
@@ -92,13 +126,13 @@ echo "extension=php_guard.so" | sudo tee /etc/php/conf.d/php_guard.ini
 cargo build -p php-guard-cli --release
 
 # 加密单个文件
-./target/release/php-guard encrypt src/file.php
+./target/release/php-guard-cli encrypt src/file.php
 
 # 加密目录
-./target/release/php-guard encrypt src/
+./target/release/php-guard-cli encrypt src/
 
 # 检查加密状态
-./target/release/php-guard check src/
+./target/release/php-guard-cli check src/
 ```
 
 ## 工作原理
@@ -149,30 +183,6 @@ echo php_guard_version(); // "0.1.0"
 | 扩展 | OPcache | ✅ |
 | 扩展 | Xdebug | ✅ |
 
-## 项目结构
-
-```
-php-guard/
-├── build.rs              # 构建脚本，生成配置
-├── src/
-│   ├── lib.rs            # 库入口
-│   ├── config.rs         # 配置（自动生成）
-│   ├── crypto.rs         # 加密算法
-│   ├── file_handler.rs   # 文件处理
-│   ├── hooks.rs          # PHP hook
-│   └── php_extension.rs  # PHP 扩展
-├── crates/
-│   └── php-guard-cli/    # Rust CLI 工具
-├── scripts/
-│   ├── generate-key.sh   # 密钥生成脚本 (Linux/macOS)
-│   └── generate-key.bat  # 密钥生成脚本 (Windows)
-├── .php-guard/           # 配置目录
-│   └── config.env        # 密钥配置
-└── .github/workflows/
-    ├── ci.yml            # 持续集成
-    └── release.yml       # 自动发布
-```
-
 ## 安全最佳实践
 
 1. **密钥管理**
@@ -192,14 +202,20 @@ php-guard/
 ## 开发
 
 ```bash
-# 运行测试
+# 运行所有测试
 cargo test
+
+# 测试核心库
+cargo test -p php-guard-core
 
 # 构建 CLI
 cargo build -p php-guard-cli --release
 
 # 构建扩展
-cargo build --features php-extension --release
+cargo build -p php-guard-ext --release
+
+# 构建所有组件
+cargo build --release
 
 # 代码检查
 cargo clippy

@@ -25,14 +25,6 @@ jobs:
             target: aarch64-unknown-linux-gnu
             artifact: php-guard-linux-aarch64
             ext: ''
-          # - os: macos-latest
-          #   target: x86_64-apple-darwin
-          #   artifact: php-guard-macos-x64
-          #   ext: ''
-          # - os: macos-latest
-          #   target: aarch64-apple-darwin
-          #   artifact: php-guard-macos-arm64
-          #   ext: ''
           - os: windows-latest
             arch: x64
             target: x86_64-pc-windows-msvc
@@ -44,7 +36,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          # toolchain: 1.85
           targets: ${{ matrix.target }}
 
       - name: Install AArch64 cross-compilation tools
@@ -62,7 +53,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/php-guard${{ matrix.ext }} dist/
+          cp target/${{ matrix.target }}/release/php-guard-cli${{ matrix.ext }} dist/php-guard
           cp -r scripts dist/
           cp README.md LICENSE dist/
           tar -czvf ${{ matrix.artifact }}.tar.gz -C dist .
@@ -71,7 +62,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           mkdir dist
-          copy target\${{ matrix.target }}\release\php-guard${{ matrix.ext }} dist\
+          copy target\${{ matrix.target }}\release\php-guard-cli${{ matrix.ext }} dist\php-guard.exe
           xcopy scripts dist\scripts\ /E /I /Y
           copy README.md dist\
           copy LICENSE dist\
@@ -102,7 +93,6 @@ jobs:
           - arch: aarch64
             target: aarch64-unknown-linux-gnu
         php: ['7.4']
-        # php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4']
     steps:
       - uses: actions/checkout@v4
 
@@ -115,7 +105,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          # toolchain: 1.85
           targets: ${{ matrix.target }}
 
       - name: Install libclang
@@ -134,12 +123,12 @@ jobs:
         env:
           CC: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
           CARGO_TARGET_${{ matrix.target == 'aarch64-unknown-linux-gnu' && 'AARCH64_UNKNOWN_LINUX_GNU' || '' }}_LINKER: ${{ matrix.arch == 'aarch64' && 'aarch64-linux-gnu-gcc' || '' }}
-        run: cargo build --features php-extension --release --target ${{ matrix.target }}
+        run: cargo build -p php-guard-ext --release --target ${{ matrix.target }}
 
       - name: Package
         run: |
           mkdir -p dist
-          cp target/${{ matrix.target }}/release/libphp_guard.so dist/php_guard_php${{ matrix.php }}_linux_${{ matrix.arch }}.so
+          cp target/${{ matrix.target }}/release/libphp_guard_ext.so dist/php_guard_php${{ matrix.php }}_linux_${{ matrix.arch }}.so
           cp -r scripts dist/
           cp README.md LICENSE dist/
           tar -czvf php_guard-php${{ matrix.php }}-linux-${{ matrix.arch }}.tar.gz -C dist .
@@ -149,51 +138,6 @@ jobs:
         with:
           name: php_guard-php${{ matrix.php }}-linux-${{ matrix.arch }}
           path: php_guard-php${{ matrix.php }}-linux-${{ matrix.arch }}.tar.gz
-
-  # build-extension-macos:
-  #   name: Build Extension (macOS PHP ${{ matrix.php }})
-  #   runs-on: macos-latest
-  #   strategy:
-  #     matrix:
-  #       php: ['7.4', '8.2']
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #
-  #     - name: Setup PHP
-  #       uses: shivammathur/setup-php@v2
-  #       with:
-  #         php-version: ${{ matrix.php }}
-  #           coverage: none
-  #
-  #     - name: Install Rust
-  #       uses: dtolnay/rust-toolchain@master
-  #       with:
-  #         toolchain: 1.85
-  #
-  #     - name: Install LLVM and Clang
-  #       run: brew install llvm
-  #
-  #     - name: Generate config
-  #       run: bash scripts/generate-key.sh
-  #
-  #     - name: Build extension
-  #       env:
-  #         LIBCLANG_PATH: /usr/local/opt/llvm/lib
-  #       run: cargo build --features php-extension --release
-  #
-  #     - name: Package
-  #       run: |
-  #         mkdir -p dist
-  #         cp target/release/libphp_guard.dylib dist/php_guard_php${{ matrix.php }}_macos.dylib
-  #         cp -r scripts dist/
-  #         cp README.md LICENSE dist/
-  #         tar -czvf php_guard-php${{ matrix.php }}-macos.tar.gz -C dist .
-  #
-  #     - name: Upload artifact
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: php_guard-php${{ matrix.php }}-macos
-  #         path: php_guard-php${{ matrix.php }}-macos.tar.gz
 
   release:
     name: Create Release
@@ -232,59 +176,35 @@ jobs:
             |------|----------|------|
             | Linux x64 | PHP 7.4 | `php_guard-php7.4-linux-x64.tar.gz` |
             | Linux aarch64 | PHP 7.4 | `php_guard-php7.4-linux-aarch64.tar.gz` |
-            | Linux x64 | PHP 8.2 | `php_guard-php8.2-linux-x64.tar.gz` |
-            | Linux aarch64 | PHP 8.2 | `php_guard-php8.2-linux-aarch64.tar.gz` |
             
             ### 安装步骤
             
             **1. 安装 PHP 扩展**
             ```bash
-            # 解压扩展包
-            tar -xzf php_guard-php8.2-linux-x64.tar.gz
-            
-            # 安装扩展到 PHP
-            sudo cp php_guard_php8.2_linux_x64.so $(php-config --extension-dir)/php_guard.so
-            
-            # 启用扩展
+            tar -xzf php_guard-php7.4-linux-x64.tar.gz
+            sudo cp php_guard_php7.4_linux_x64.so $(php-config --extension-dir)/php_guard.so
             echo "extension=php_guard.so" | sudo tee /etc/php/conf.d/php_guard.ini
             ```
             
             **2. 生成密钥配置**
             ```bash
-            # 解压 CLI 工具包（包含 scripts 目录）
             tar -xzf php-guard-linux-x64.tar.gz
-            
-            # 生成加密密钥
             bash scripts/generate-key.sh
-            
-            # 配置文件将保存到 .php-guard/config.env
             ```
             
             **3. 重新构建扩展（使用您的密钥）**
             ```bash
-            # 克隆仓库
             git clone https://github.com/yourname/php-guard.git
             cd php-guard
-            
-            # 使用 CLI 工具包中的脚本生成配置
             bash ../scripts/generate-key.sh
-            
-            # 构建扩展
-            cargo build --features php-extension --release
-            
-            # 安装
-            sudo cp target/release/libphp_guard.so $(php-config --extension-dir)/php_guard.so
+            cargo build -p php-guard-ext --release
+            sudo cp target/release/libphp_guard_ext.so $(php-config --extension-dir)/php_guard.so
             ```
             
             **4. 加密 PHP 文件**
             ```bash
-            # 加密单个文件
             ./php-guard encrypt example.php
-            
-            # 加密目录
             ./php-guard encrypt src/
-            
-            # 检查加密状态
             ./php-guard check src/
             ```
             
@@ -298,16 +218,5 @@ jobs:
             ⚠️ **Windows 支持**
             - 目前 Windows 原生编译不支持
             - 建议使用 WSL 或 Docker
-            
-            ### 可用命令
-            
-            CLI 工具支持以下命令：
-            - `./php-guard encrypt <path>` - 加密文件或目录
-            - `./php-guard check <path>` - 检查加密状态
-            - `./php-guard --help` - 显示帮助信息
-            
-            脚本工具：
-            - `scripts/generate-key.sh` - 生成密钥配置（Linux/macOS）
-            - `scripts/generate-key.bat` - 生成密钥配置（Windows）
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

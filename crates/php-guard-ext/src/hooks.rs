@@ -1,9 +1,9 @@
+use std::ffi::CStr;
 use std::os::raw::c_int;
 use std::ptr;
 
 use std::os::unix::io::AsRawFd;
 
-use phper::strings::ZStr;
 use phper::sys::{self, zend_compile_file, zend_file_handle};
 
 use php_guard_core::config::HEADER;
@@ -42,9 +42,12 @@ unsafe fn call_original(
 
 unsafe fn get_filename_str(handle: &zend_file_handle) -> Option<String> {
     unsafe {
-        match ZStr::try_from_ptr(handle.filename) {
-            Some(zstr) => Some(zstr.to_string_lossy().into_owned()),
-            None => None,
+        if handle.filename.is_null() {
+            return None;
+        }
+        match CStr::from_ptr(handle.filename).to_str() {
+            Ok(s) => Some(s.to_string()),
+            Err(_) => None,
         }
     }
 }

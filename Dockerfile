@@ -25,8 +25,8 @@ WORKDIR /build
 # 复制项目文件
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-COPY src ./src
-COPY examples ./examples
+COPY scripts ./scripts
+COPY .php-guard ./.php-guard
 
 # 构建参数：PHP 版本和配置路径
 ARG PHP_VERSION=8.3
@@ -85,9 +85,9 @@ ARG TARGETPLATFORM
 ENV CC=${TARGETPLATFORM == "linux/arm64" && "aarch64-linux-gnu-gcc" || "gcc"}
 ENV CARGO_TARGET_${TARGETPLATFORM == "linux/arm64" && "AARCH64_UNKNOWN_LINUX_GNU" || ""}_LINKER=${TARGETPLATFORM == "linux/arm64" && "aarch64-linux-gnu-gcc" || "gcc"}
 RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
-        cargo build --features php-extension --release --target aarch64-unknown-linux-gnu; \
+        cargo build -p php-guard-ext --release --target aarch64-unknown-linux-gnu; \
     else \
-        cargo build --features php-extension --release; \
+        cargo build -p php-guard-ext --release; \
     fi
 
 # ============================================
@@ -97,7 +97,7 @@ FROM php:${PHP_VERSION}-cli AS runtime
 
 # 复制构建产物
 ARG TARGETPLATFORM
-COPY --from=build-env /build/target${TARGETPLATFORM == "linux/arm64" && "/aarch64-unknown-linux-gnu" || ""}/release/libphp_guard.so /usr/lib/php/modules/
+COPY --from=build-env /build/target${TARGETPLATFORM == "linux/arm64" && "/aarch64-unknown-linux-gnu" || ""}/release/libphp_guard_ext.so /usr/lib/php/modules/php_guard.so
 
 # 启用扩展
 RUN echo "extension=php_guard.so" > /usr/local/etc/php/conf.d/php_guard.ini

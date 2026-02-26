@@ -11,6 +11,7 @@ PHP-Guard 是一个基于 Rust (phper 框架) 开发的 PHP7+ 代码加密扩展
 3. **跨平台** - 支持 Linux、macOS 等主流操作系统
 4. **兼容性好** - 兼容 OPcache、Xdebug 等扩展，支持 CLI 和 FPM 模式
 5. **可定制** - 支持自定义加密头和密钥
+6. **模块化** - 核心库、扩展、CLI 分离，便于复用和测试
 
 ## 架构图
 
@@ -25,11 +26,11 @@ PHP-Guard 是一个基于 Rust (phper 框架) 开发的 PHP7+ 代码加密扩展
 │                                      │                          │
 │                                      ▼                          │
 │                        ┌─────────────────────────┐              │
-│                        │    php-guard 扩展       │              │
+│                        │   php-guard-ext 扩展    │              │
 │                        ├─────────────────────────┤              │
 │                        │ 1. 检测加密文件头        │              │
 │                        │ 2. 读取加密内容          │              │
-│                        │ 3. 解密还原源码          │              │
+│                        │ 3. 调用 core 解密        │              │
 │                        │ 4. 返回给 PHP 编译       │              │
 │                        └─────────────────────────┘              │
 │                                      │                          │
@@ -41,9 +42,28 @@ PHP-Guard 是一个基于 Rust (phper 框架) 开发的 PHP7+ 代码加密扩展
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## 模块架构
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        php-guard-cli                            │
+│                     (命令行工具)                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                        php-guard-ext                            │
+│                     (PHP 扩展 cdylib)                           │
+│              hooks.rs │ php_extension.rs                        │
+├─────────────────────────────────────────────────────────────────┤
+│                        php-guard-core                           │
+│                       (核心库 rlib)                             │
+│          crypto.rs │ file_handler.rs │ config.rs               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ## 核心模块
 
-### 1. 加密核心模块 (`src/crypto.rs`)
+### 1. php-guard-core (核心库)
+
+#### 加密模块 (`src/crypto.rs`)
 
 负责加密/解密算法实现：
 
@@ -62,7 +82,7 @@ for i in 0..len {
 }
 ```
 
-### 2. 文件处理模块 (`src/file_handler.rs`)
+#### 文件处理模块 (`src/file_handler.rs`)
 
 负责文件读取、检测和处理：
 
@@ -70,15 +90,7 @@ for i in 0..len {
 - 读取加密文件内容
 - 解密后返回可编译内容
 
-### 3. PHP 扩展入口 (`src/lib.rs`)
-
-PHP 扩展主入口：
-
-- 注册 PHP 模块
-- 提供 `php_guard_encode()` 函数用于加密
-- Hook `zend_compile_file` 实现透明解密
-
-### 4. 配置模块 (`src/config.rs`)
+#### 配置模块 (`src/config.rs`)
 
 管理加密配置：
 
@@ -88,6 +100,40 @@ struct Config {
     key: Vec<u8>,     // 加密密钥
 }
 ```
+
+### 2. php-guard-ext (PHP 扩展)
+
+#### PHP 扩展入口 (`src/lib.rs`)
+
+PHP 扩展主入口：
+
+- 注册 PHP 模块
+- 提供 `php_guard_encode()` 函数用于加密
+- 导出 `register_module()` 函数
+
+#### PHP Hook (`src/hooks.rs`)
+
+Hook 机制实现：
+
+- 保存原始 `zend_compile_file` 指针
+- 替换为自定义编译函数
+- 运行时检测并解密加密文件
+
+#### PHP 扩展注册 (`src/php_extension.rs`)
+
+注册 PHP 函数：
+
+- `php_guard_encode()` - 加密内容
+- `php_guard_is_encrypted()` - 检查加密状态
+- `php_guard_version()` - 获取版本
+
+### 3. php-guard-cli (CLI 工具)
+
+命令行工具：
+
+- `encrypt` - 加密 PHP 文件
+- `check` - 检查加密状态
+- `decrypt` - 解密 PHP 文件
 
 ## 加密文件格式
 
@@ -108,11 +154,11 @@ struct Config {
 │ 原始 PHP    │ ──▶ │ 添加加密头  │ ──▶ │ XOR 加密    │
 │ 源文件      │     │             │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘
-                                               │
-                                               ▼
-                                        ┌─────────────┐
-                                        │ 加密后文件  │
-                                        └─────────────┘
+                                                │
+                                                ▼
+                                         ┌─────────────┐
+                                         │ 加密后文件  │
+                                         └─────────────┘
 ```
 
 ### 解密流程 (运行时)
@@ -122,29 +168,41 @@ struct Config {
 │ 加密文件    │ ──▶ │ 检测加密头  │ ──▶ │ XOR 解密    │
 │             │     │             │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘
-                                               │
-                                               ▼
-                                        ┌─────────────┐
-                                        │ 原始源码    │
-                                        │ 交由 PHP    │
-                                        └─────────────┘
+                                                │
+                                                ▼
+                                         ┌─────────────┐
+                                         │ 原始源码    │
+                                         │ 交由 PHP    │
+                                         └─────────────┘
 ```
 
 ## 项目结构
 
 ```
 php-guard/
-├── build.rs                # 构建脚本（自动生成配置）
-├── Cargo.toml              # Rust 项目配置
-├── src/
-│   ├── lib.rs              # PHP 扩展入口
-│   ├── config.rs           # 配置（自动生成）
-│   ├── crypto.rs           # 加密/解密算法
-│   ├── file_handler.rs     # 文件处理
-│   ├── hooks.rs            # PHP Hook 机制
-│   └── php_extension.rs    # PHP 扩展注册
+├── Cargo.toml              # Workspace 配置
 ├── crates/
-│   └── php-guard-cli/      # Rust CLI 工具
+│   ├── php-guard-core/     # 核心库 (加密/解密算法)
+│   │   ├── Cargo.toml
+│   │   ├── build.rs        # 配置生成
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── config.rs   # 配置 (自动生成)
+│   │   │   ├── crypto.rs   # 加密算法
+│   │   │   └── file_handler.rs
+│   │   └── examples/
+│   │       └── encrypt_file.rs
+│   ├── php-guard-ext/      # PHP 扩展
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── hooks.rs    # PHP hook
+│   │       └── php_extension.rs
+│   └── php-guard-cli/      # CLI 工具
+│       ├── Cargo.toml
+│       └── src/
+│           ├── main.rs
+│           └── commands.rs
 ├── scripts/
 │   ├── generate-key.sh     # 密钥生成 (Linux/macOS)
 │   └── generate-key.bat    # 密钥生成 (Windows)
@@ -198,4 +256,4 @@ php-guard/
 - Rust 1.85+
 - libclang 9.0+
 - PHP 7.0+
-- phper 0.15.x
+- phper 0.17.x

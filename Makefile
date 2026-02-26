@@ -2,16 +2,6 @@
 
 .PHONY: all build build-cli build-release install test clean help generate-key encrypt check docker-build docker-test
 
-# Generate a list of available commands and their descriptions by parsing the Makefile.
-help:
-	@echo "命令:"
-	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%${width}s\033[0m: %s\n", $$1, $$2}'
-	@echo ""
-
-# 默认目标
-all: help
-
-# 帮助信息
 help:
 	@echo "PHP-Guard 构建命令"
 	@echo ""
@@ -22,6 +12,7 @@ help:
 	@echo "  make build           - 开发模式构建扩展"
 	@echo "  make build-release   - 发布模式构建扩展 (推荐)"
 	@echo "  make build-cli       - 构建 CLI 工具"
+	@echo "  make build-all       - 构建所有组件"
 	@echo "  make install         - 安装扩展到 PHP"
 	@echo ""
 	@echo "CLI 工具 (需要先运行 make build-cli):"
@@ -35,6 +26,7 @@ help:
 	@echo ""
 	@echo "测试:"
 	@echo "  make test            - 运行 Rust 测试"
+	@echo "  make test-core       - 测试核心库"
 	@echo "  make lint            - 代码检查"
 	@echo ""
 	@echo "清理:"
@@ -57,13 +49,19 @@ generate-key:
 # 构建
 # ============================================
 build:
-	cargo build --features php-extension
+	cargo build -p php-guard-ext
 
 build-release:
-	cargo build --features php-extension --release
+	cargo build -p php-guard-ext --release
 
 build-cli:
 	cargo build -p php-guard-cli --release
+
+build-core:
+	cargo build -p php-guard-core --release
+
+build-all: build-release build-cli
+	@echo "所有组件构建完成"
 
 # ============================================
 # CLI 工具 (Rust)
@@ -91,7 +89,7 @@ endif
 # ============================================
 install: build-release
 	@echo "安装扩展..."
-	sudo cp target/release/libphp_guard.so $$(php-config --extension-dir)/php_guard.so
+	sudo cp target/release/libphp_guard_ext.so $$(php-config --extension-dir)/php_guard.so
 	@echo "扩展已安装到: $$(php-config --extension-dir)/php_guard.so"
 	@echo ""
 	@echo "启用扩展 (选择一种方式):"
@@ -109,7 +107,7 @@ docker-build:
 	@echo ""
 	@echo "提取编译产物:"
 	@echo "  mkdir -p dist"
-	@echo "  docker run --rm -v $$(pwd)/dist:/dist php-guard:php$(PHP_VERSION) cp /build/target/release/libphp_guard.so /dist/php_guard_php$(PHP_VERSION).so"
+	@echo "  docker run --rm -v $$(pwd)/dist:/dist php-guard:php$(PHP_VERSION) cp /build/target/release/libphp_guard_ext.so /dist/php_guard_php$(PHP_VERSION).so"
 
 docker-build-all:
 	@echo "构建所有 PHP 版本..."
@@ -126,6 +124,9 @@ docker-test:
 # ============================================
 test:
 	cargo test
+
+test-core:
+	cargo test -p php-guard-core
 
 lint:
 	cargo clippy -- -D warnings
