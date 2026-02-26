@@ -1,12 +1,12 @@
 [package]
 name = "php-guard-cli"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["erasin <erasinoo@gmail.com>"]
 description = "CLI tool for PHP-Guard PHP source code encryption"
 
 [dependencies]
-php-guard = { path = "../.." }
+php-guard-core = { path = "../php-guard-core" }
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 colored = "2"

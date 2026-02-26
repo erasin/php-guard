@@ -6,11 +6,9 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("config_generated.rs");
 
-    // 配置文件路径
     let config_dir = env::var("PHP_GUARD_CONFIG_DIR").unwrap_or_else(|_| ".php-guard".to_string());
     let config_file = Path::new(&config_dir).join("config.env");
 
-    // 尝试从配置文件读取
     let (key, header) = if config_file.exists() {
         println!(
             "cargo:warning=Reading configuration from: {}",
@@ -18,23 +16,19 @@ fn main() {
         );
         read_config_from_file(&config_file)
     } else {
-        // 生成默认配置
         println!("cargo:warning=Generating default configuration");
         let key = generate_random_bytes(32);
         let header = generate_random_bytes(16);
 
-        // 保存到配置文件
         save_config_to_file(&config_file, &key, &header);
 
         (key, header)
     };
 
-    // 生成 Rust 代码
     let code = generate_config_code(&key, &header);
 
     fs::write(&dest_path, code).unwrap();
 
-    // 重新构建如果配置文件改变
     println!("cargo:rerun-if-changed={}", config_file.display());
     println!("cargo:rerun-if-env-changed=PHP_GUARD_CONFIG_DIR");
 }
@@ -98,7 +92,6 @@ fn generate_random_bytes(len: usize) -> Vec<u8> {
         .unwrap()
         .as_nanos();
 
-    // 简单的伪随机生成器（实际使用时应该用更安全的方法）
     let mut seed = timestamp as u64;
     for _i in 0..len {
         seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
@@ -126,15 +119,6 @@ fn generate_config_code(key: &[u8], header: &[u8]) -> String {
     format!(
         r#"pub const KEY: &[u8] = &[{}];
 pub const HEADER: &[u8] = &[{}];
-
-#[cfg(feature = "php-extension")]
-pub const MODULE_NAME: &str = env!("CARGO_PKG_NAME");
-
-#[cfg(feature = "php-extension")]
-pub const MODULE_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg(feature = "php-extension")]
-pub const MODULE_AUTHORS: &str = env!("CARGO_PKG_AUTHORS");
 "#,
         key_bytes, header_bytes
     )

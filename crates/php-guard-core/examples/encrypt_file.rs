@@ -1,4 +1,4 @@
-use php_guard::{encrypt_content, is_encrypted};
+use php_guard_core::{encrypt_content, is_encrypted};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

@@ -6,9 +6,9 @@ use std::os::unix::io::AsRawFd;
 use phper::strings::ZStr;
 use phper::sys::{self, zend_compile_file, zend_file_handle};
 
-use crate::config::HEADER;
-use crate::crypto::decode;
-use crate::file_handler::create_temp_file_with_content;
+use php_guard_core::config::HEADER;
+use php_guard_core::crypto::decode;
+use php_guard_core::file_handler::create_temp_file_with_content;
 
 static mut ORIGINAL_COMPILE_FILE: Option<
     unsafe extern "C" fn(*mut zend_file_handle, c_int) -> *mut sys::_zend_op_array,

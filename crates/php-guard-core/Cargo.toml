@@ -1,0 +1,19 @@
+[package]
+name = "php-guard-core"
+version = "0.1.0"
+edition = "2024"
+authors = ["erasin <erasinoo@gmail.com>"]
+description = "Core library for PHP-Guard source code encryption"
+
+[lib]
+name = "php_guard_core"
+path = "src/lib.rs"
+
+[dependencies]
+tempfile = "3"
+
+[dev-dependencies]
+
+[[example]]
+name = "encrypt_file"
+path = "examples/encrypt_file.rs"

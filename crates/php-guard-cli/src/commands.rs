@@ -3,7 +3,7 @@ use colored::Colorize;
 use std::fs;
 use std::path::Path;
 
-use php_guard::{is_encrypted, read_and_decrypt_file};
+use php_guard_core::{encrypt_content, is_encrypted, read_and_decrypt_file};
 
 pub fn encrypt(paths: &[String], output_dir: Option<&str>) -> Result<()> {
     println!("{}", "PHP-Guard 文件加密".green().bold());
@@ -63,7 +63,7 @@ fn encrypt_single_file(path: &Path, output_dir: Option<&str>) -> Result<bool> {
         println!("{} 已创建备份: {}", "✓".green(), backup_path.display());
     }
 
-    let encrypted = php_guard::encrypt_content(&content);
+    let encrypted = encrypt_content(&content);
 
     let output_path = match output_dir {
         Some(dir) => {

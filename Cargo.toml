@@ -1,34 +1,20 @@
-[package]
-name = "php-guard"
+[workspace]
+members = [
+    "crates/php-guard-core",
+    "crates/php-guard-ext",
+    "crates/php-guard-cli",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 authors = ["erasin <erasinoo@gmail.com>"]
-description = "A high performance and cross-platform encrypt extension for PHP source code"
 license = "MIT"
 repository = "https://github.com/erasin/php-guard"
-keywords = ["php", "extension", "encrypt", "phper", "rust"]
-categories = ["development-tools::ffi"]
 
-[workspace]
-members = ["crates/php-guard-cli"]
-resolver = "2"
-
-[lib]
-name = "php_guard"
-crate-type = ["cdylib", "rlib"]
-
-[features]
-default = []
-php-extension = ["phper", "libc"]
-
-[dependencies]
-tempfile = "3"
-
-[target.'cfg(unix)'.dependencies]
-phper = { version = "0.17", optional = true }
-libc = { version = "0.2", optional = true }
-
-[dev-dependencies]
+[workspace.dependencies]
+php-guard-core = { path = "crates/php-guard-core" }
 
 [profile.release]
 opt-level = 3
@@ -36,7 +22,3 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
-
-[[example]]
-name = "encrypt_file"
-path = "examples/encrypt_file.rs"

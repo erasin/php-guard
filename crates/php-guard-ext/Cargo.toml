@@ -1,0 +1,15 @@
+[package]
+name = "php-guard-ext"
+version = "0.1.0"
+edition = "2024"
+authors = ["erasin <erasinoo@gmail.com>"]
+description = "PHP extension for PHP-Guard source code encryption"
+
+[lib]
+name = "php_guard_ext"
+crate-type = ["cdylib"]
+
+[target.'cfg(unix)'.dependencies]
+php-guard-core = { path = "../php-guard-core" }
+phper = { version = "0.17" }
+libc = { version = "0.2" }
