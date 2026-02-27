@@ -28,6 +28,7 @@ install: build
 	@echo "安装扩展..."
 	sudo cp target/release/libphp_guard_ext.so $$(php-config --extension-dir)/php_guard.so
 	@echo "扩展已安装到: $$(php-config --extension-dir)/php_guard.so"
+	cp target/release/php-guard-cli ~/.cargo/bin/
 
 # ============================================
 # 测试
