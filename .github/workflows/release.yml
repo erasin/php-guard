@@ -99,13 +99,17 @@ jobs:
           path: dist/*
 
   build-ext-linux:
-    name: Ext Linux PHP${{ matrix.php }}-x64
+    name: Ext Linux ${{ matrix.arch }}
     needs: generate-config
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        php: ['7.4', '8.2']
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
 
@@ -114,10 +118,10 @@ jobs:
           name: config
           path: .php-guard
 
-      - name: Setup PHP ${{ matrix.php }}
+      - name: Setup PHP 7.4
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '7.4'
           coverage: none
 
       - uses: dtolnay/rust-toolchain@stable
@@ -128,21 +132,17 @@ jobs:
       - name: Package
         run: |
           mkdir -p dist
-          cp target/release/libphp_guard_ext.so dist/php_guard_php${{ matrix.php }}-linux-x64.so
+          cp target/release/libphp_guard_ext.so dist/php_guard_linux-${{ matrix.arch }}.so
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ext-linux-php${{ matrix.php }}
+          name: ext-linux-${{ matrix.arch }}
           path: dist/*
 
   build-ext-windows:
-    name: Ext Windows PHP${{ matrix.php }}
+    name: Ext Windows x64
     needs: generate-config
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        php: ['7.4', '8.2']
     steps:
       - uses: actions/checkout@v4
 
@@ -151,10 +151,10 @@ jobs:
           name: config
           path: .php-guard
 
-      - name: Setup PHP ${{ matrix.php }}
+      - name: Setup PHP 7.4
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
+          php-version: '7.4'
           coverage: none
 
       - uses: dtolnay/rust-toolchain@stable
@@ -165,11 +165,11 @@ jobs:
       - name: Package
         run: |
           mkdir dist
-          cp target/release/php_guard_ext.dll dist/php_guard_php${{ matrix.php }}-windows-x64.dll
+          cp target/release/php_guard_ext.dll dist/php_guard_windows-x64.dll
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ext-windows-php${{ matrix.php }}
+          name: ext-windows-x64
           path: dist/*
 
   release:
@@ -202,22 +202,17 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: ext-linux-php7.4
+          name: ext-linux-x64
           path: release
 
       - uses: actions/download-artifact@v4
         with:
-          name: ext-linux-php8.2
+          name: ext-linux-arm64
           path: release
 
       - uses: actions/download-artifact@v4
         with:
-          name: ext-windows-php7.4
-          path: release
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: ext-windows-php8.2
+          name: ext-windows-x64
           path: release
 
       - name: List release files
