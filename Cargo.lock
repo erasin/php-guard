@@ -424,6 +424,7 @@ dependencies = [
  "libc",
  "php-guard-core",
  "phper",
+ "tempfile",
 ]
 
 [[package]]

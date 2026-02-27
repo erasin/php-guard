@@ -9,8 +9,8 @@ description = "PHP extension for PHP-Guard source code encryption"
 name = "php_guard_ext"
 crate-type = ["cdylib"]
 
-# [target.'cfg(unix)'.dependencies]
 [dependencies]
 php-guard-core = { path = "../php-guard-core" }
 phper = { version = "0.17" }
 libc = { version = "0.2" }
+tempfile = "3"

@@ -6,27 +6,30 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("config_generated.rs");
 
-    let config_dir = env::var("PHP_GUARD_CONFIG_DIR").unwrap_or_else(|_| ".php-guard".to_string());
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let workspace_dir = Path::new(&manifest_dir)
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("Failed to find workspace directory");
+
+    let config_dir = env::var("PHP_GUARD_CONFIG_DIR").unwrap_or_else(|_| {
+        workspace_dir
+            .join(".php-guard")
+            .to_string_lossy()
+            .into_owned()
+    });
     let config_file = Path::new(&config_dir).join("config.env");
 
     let (key, header) = if config_file.exists() {
-        println!(
-            "cargo:warning=Reading configuration from: {}",
-            config_file.display()
-        );
         read_config_from_file(&config_file)
     } else {
-        println!("cargo:warning=Generating default configuration");
         let key = generate_random_bytes(32);
         let header = generate_random_bytes(16);
-
         save_config_to_file(&config_file, &key, &header);
-
         (key, header)
     };
 
     let code = generate_config_code(&key, &header);
-
     fs::write(&dest_path, code).unwrap();
 
     println!("cargo:rerun-if-changed={}", config_file.display());
@@ -41,7 +44,6 @@ fn read_config_from_file(path: &Path) -> (Vec<u8>, Vec<u8>) {
 
     for line in content.lines() {
         let line = line.trim();
-
         if line.starts_with("export PHP_GUARD_KEY=") || line.starts_with("PHP_GUARD_KEY=") {
             let value = line.split('=').nth(1).unwrap().trim().trim_matches('"');
             key = Some(hex_to_bytes(value));
@@ -54,30 +56,26 @@ fn read_config_from_file(path: &Path) -> (Vec<u8>, Vec<u8>) {
         }
     }
 
-    let key = key.expect("PHP_GUARD_KEY not found in config file");
-    let header = header.expect("PHP_GUARD_HEADER not found in config file");
-
-    (key, header)
+    (
+        key.expect("PHP_GUARD_KEY not found"),
+        header.expect("PHP_GUARD_HEADER not found"),
+    )
 }
 
 fn save_config_to_file(path: &Path, key: &[u8], header: &[u8]) {
     let config_dir = path.parent().unwrap();
     fs::create_dir_all(config_dir).ok();
 
-    let key_hex = bytes_to_hex(key);
-    let header_hex = bytes_to_hex(header);
-
     let content = format!(
         r#"# PHP-Guard 配置文件
-# 由 build.rs 自动生成
-
 # 加密密钥 (256位)
 export PHP_GUARD_KEY="{}"
 
 # 文件头部标识 (128位)
 export PHP_GUARD_HEADER="{}"
 "#,
-        key_hex, header_hex
+        bytes_to_hex(key),
+        bytes_to_hex(header)
     );
 
     fs::write(path, content).expect("Failed to write config file");
@@ -86,19 +84,18 @@ export PHP_GUARD_HEADER="{}"
 fn generate_random_bytes(len: usize) -> Vec<u8> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    let mut bytes = Vec::with_capacity(len);
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
 
     let mut seed = timestamp as u64;
-    for _i in 0..len {
-        seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
-        bytes.push(((seed >> 16) & 0xFF) as u8);
-    }
-
-    bytes
+    (0..len)
+        .map(|_| {
+            seed = seed.wrapping_mul(1103515245).wrapping_add(12345);
+            ((seed >> 16) & 0xFF) as u8
+        })
+        .collect()
 }
 
 fn hex_to_bytes(hex: &str) -> Vec<u8> {
@@ -113,14 +110,10 @@ fn bytes_to_hex(bytes: &[u8]) -> String {
 }
 
 fn generate_config_code(key: &[u8], header: &[u8]) -> String {
-    let key_bytes = format_bytes_for_rust(key);
-    let header_bytes = format_bytes_for_rust(header);
-
     format!(
-        r#"pub const KEY: &[u8] = &[{}];
-pub const HEADER: &[u8] = &[{}];
-"#,
-        key_bytes, header_bytes
+        "pub const KEY: &[u8] = &[{}];\npub const HEADER: &[u8] = &[{}];\n",
+        format_bytes_for_rust(key),
+        format_bytes_for_rust(header)
     )
 }
 

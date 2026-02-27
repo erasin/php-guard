@@ -19,8 +19,10 @@ jobs:
           mkdir -p .php-guard
           KEY=$(openssl rand -hex 32)
           HEADER=$(openssl rand -hex 16)
-          echo "export PHP_GUARD_KEY=\"$KEY\"" > .php-guard/config.env
-          echo "export PHP_GUARD_HEADER=\"$HEADER\"" >> .php-guard/config.env
+          cat > .php-guard/config.env << EOF
+          export PHP_GUARD_KEY="${KEY}"
+          export PHP_GUARD_HEADER="${HEADER}"
+          EOF
           cat .php-guard/config.env
 
       - uses: actions/upload-artifact@v4
@@ -28,69 +30,8 @@ jobs:
           name: config
           path: .php-guard/config.env
 
-  build-cli:
-    name: CLI ${{ matrix.target }}
-    needs: generate-config
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact: php-guard-linux-x64
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            artifact: php-guard-linux-arm64
-            cross: true
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            artifact: php-guard-windows-x64.exe
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: config
-          path: .php-guard
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Install cross
-        if: matrix.cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Build
-        run: |
-          if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build -p php-guard-cli --release --target ${{ matrix.target }}
-          else
-            cargo build -p php-guard-cli --release --target ${{ matrix.target }}
-          fi
-        shell: bash
-
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir dist
-          cp target/${{ matrix.target }}/release/php-guard-cli dist/${{ matrix.artifact }}
-          chmod +x dist/${{ matrix.artifact }}
-
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          mkdir dist
-          cp target/${{ matrix.target }}/release/php-guard-cli.exe dist/${{ matrix.artifact }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cli-${{ matrix.target }}
-          path: dist/${{ matrix.artifact }}
-
-  build-ext-linux:
-    name: Ext ${{ matrix.target }}
+  build-linux:
+    name: Linux ${{ matrix.target }}
     needs: generate-config
     runs-on: ubuntu-latest
     strategy:
@@ -98,10 +39,11 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            artifact: php_guard_linux-x64.so
+            cross: false
+            arch: x64
           - target: aarch64-unknown-linux-gnu
-            artifact: php_guard_linux-arm64.so
             cross: true
+            arch: arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -121,23 +63,24 @@ jobs:
       - name: Build
         run: |
           if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build -p php-guard-ext --release --target ${{ matrix.target }}
+            cross build -p php-guard-cli -p php-guard-ext --release --target ${{ matrix.target }}
           else
-            cargo build -p php-guard-ext --release --target ${{ matrix.target }}
+            cargo build -p php-guard-cli -p php-guard-ext --release --target ${{ matrix.target }}
           fi
 
       - name: Package
         run: |
-          mkdir dist
-          cp target/${{ matrix.target }}/release/libphp_guard_ext.so dist/${{ matrix.artifact }}
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/php-guard-cli dist/php-guard-linux-${{ matrix.arch }}
+          cp target/${{ matrix.target }}/release/libphp_guard_ext.so dist/php_guard_linux-${{ matrix.arch }}.so
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ext-${{ matrix.target }}
-          path: dist/${{ matrix.artifact }}
+          name: linux-${{ matrix.arch }}
+          path: dist/*
 
-  build-ext-windows:
-    name: Ext x86_64-pc-windows-msvc
+  build-windows:
+    name: Windows x64
     needs: generate-config
     runs-on: windows-latest
     steps:
@@ -153,21 +96,22 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Build
-        run: cargo build -p php-guard-ext --release --target x86_64-pc-windows-msvc
+        run: cargo build -p php-guard-cli -p php-guard-ext --release --target x86_64-pc-windows-msvc
 
       - name: Package
         run: |
           mkdir dist
+          cp target/x86_64-pc-windows-msvc/release/php-guard-cli.exe dist/php-guard-windows-x64.exe
           cp target/x86_64-pc-windows-msvc/release/php_guard_ext.dll dist/php_guard_windows-x64.dll
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ext-x86_64-pc-windows-msvc
-          path: dist/php_guard_windows-x64.dll
+          name: windows-x64
+          path: dist/*
 
   release:
     name: Release
-    needs: [build-cli, build-ext-linux, build-ext-windows]
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:

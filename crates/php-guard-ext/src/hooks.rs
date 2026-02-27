@@ -1,14 +1,15 @@
 use std::ffi::CStr;
 use std::os::raw::c_int;
+use std::os::unix::io::AsRawFd;
 use std::ptr;
 
-use std::os::unix::io::AsRawFd;
-
-use phper::sys::{self, zend_compile_file, zend_file_handle};
+use phper::sys::{
+    self, zend_compile_file, zend_file_handle, zend_stream_type_ZEND_HANDLE_FILENAME,
+    zend_stream_type_ZEND_HANDLE_FP, zend_stream_type_ZEND_HANDLE_STREAM,
+};
 
 use php_guard_core::config::HEADER;
 use php_guard_core::crypto::decode;
-use php_guard_core::file_handler::create_temp_file_with_content;
 
 static mut ORIGINAL_COMPILE_FILE: Option<
     unsafe extern "C" fn(*mut zend_file_handle, c_int) -> *mut sys::_zend_op_array,
@@ -62,7 +63,7 @@ fn should_decrypt(filename: &str) -> bool {
     true
 }
 
-fn try_decrypt(filename: &str) -> Option<std::fs::File> {
+fn try_decrypt(filename: &str) -> Option<Vec<u8>> {
     let content = std::fs::read(filename).ok()?;
 
     if content.len() < HEADER.len() {
@@ -76,7 +77,7 @@ fn try_decrypt(filename: &str) -> Option<std::fs::File> {
     let mut decrypted = content[HEADER.len()..].to_vec();
     decode(&mut decrypted);
 
-    create_temp_file_with_content(&decrypted).ok()
+    Some(decrypted)
 }
 
 #[unsafe(no_mangle)]
@@ -99,19 +100,53 @@ pub unsafe extern "C" fn php_guard_compile_file(
         return unsafe { call_original(file_handle, type_) };
     }
 
-    let temp_file = match try_decrypt(&filename) {
-        Some(f) => f,
+    let decrypted = match try_decrypt(&filename) {
+        Some(d) => d,
         None => return unsafe { call_original(file_handle, type_) },
     };
 
-    if !unsafe { handle.handle.fp.is_null() } {
-        unsafe { libc::fclose(handle.handle.fp.cast()) };
+    let mut temp_file = match tempfile::tempfile() {
+        Ok(f) => f,
+        Err(_) => return unsafe { call_original(file_handle, type_) },
+    };
+
+    use std::io::{Seek, SeekFrom, Write};
+    if temp_file.write_all(&decrypted).is_err() {
+        return unsafe { call_original(file_handle, type_) };
+    }
+    if temp_file.seek(SeekFrom::Start(0)).is_err() {
+        return unsafe { call_original(file_handle, type_) };
+    }
+
+    match handle.type_ {
+        zend_stream_type_ZEND_HANDLE_FP => unsafe {
+            if !handle.handle.fp.is_null() {
+                libc::fclose(handle.handle.fp.cast());
+                handle.handle.fp = ptr::null_mut();
+            }
+        },
+        zend_stream_type_ZEND_HANDLE_STREAM => unsafe {
+            if !handle.handle.stream.handle.is_null() {
+                if let Some(closer) = handle.handle.stream.closer {
+                    closer(handle.handle.stream.handle);
+                }
+            }
+            handle.handle.stream.handle = ptr::null_mut();
+        },
+        zend_stream_type_ZEND_HANDLE_FILENAME => {}
+        _ => {}
     }
 
     let fd = temp_file.as_raw_fd();
     let new_fp = unsafe { libc::fdopen(fd, b"r\0".as_ptr().cast()) };
-    handle.handle.fp = new_fp.cast();
+    if new_fp.is_null() {
+        return unsafe { call_original(file_handle, type_) };
+    }
 
+    unsafe {
+        handle.handle.fp = new_fp.cast();
+    }
+    handle.type_ = zend_stream_type_ZEND_HANDLE_FP;
     std::mem::forget(temp_file);
 
     unsafe { call_original(file_handle, type_) }
