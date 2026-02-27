@@ -10,8 +10,27 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  generate-config:
+    name: Generate Config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate config
+        run: |
+          mkdir -p .php-guard
+          KEY=$(openssl rand -hex 32)
+          HEADER=$(openssl rand -hex 16)
+          echo "export PHP_GUARD_KEY=\"$KEY\"" > .php-guard/config.env
+          echo "export PHP_GUARD_HEADER=\"$HEADER\"" >> .php-guard/config.env
+          cat .php-guard/config.env
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: config
+          path: .php-guard/config.env
+
   build-cli:
     name: CLI ${{ matrix.target }}
+    needs: generate-config
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,6 +49,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: .php-guard
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -37,15 +61,6 @@ jobs:
       - name: Install cross
         if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Generate config
-        run: |
-          mkdir -p .php-guard
-          KEY=$(openssl rand -hex 32)
-          HEADER=$(openssl rand -hex 16)
-          echo "export PHP_GUARD_KEY=\"$KEY\"" > .php-guard/config.env
-          echo "export PHP_GUARD_HEADER=\"$HEADER\"" >> .php-guard/config.env
-        shell: bash
 
       - name: Build
         run: |
@@ -76,6 +91,7 @@ jobs:
 
   build-ext-linux:
     name: Ext ${{ matrix.target }}
+    needs: generate-config
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -83,13 +99,16 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             artifact: php_guard_linux-x64.so
-            php_image: php:8.3-cli
           - target: aarch64-unknown-linux-gnu
             artifact: php_guard_linux-arm64.so
-            php_image: php:8.3-cli
             cross: true
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: .php-guard
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -98,14 +117,6 @@ jobs:
       - name: Install cross
         if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Generate config
-        run: |
-          mkdir -p .php-guard
-          KEY=$(openssl rand -hex 32)
-          HEADER=$(openssl rand -hex 16)
-          echo "export PHP_GUARD_KEY=\"$KEY\"" > .php-guard/config.env
-          echo "export PHP_GUARD_HEADER=\"$HEADER\"" >> .php-guard/config.env
 
       - name: Build
         run: |
@@ -127,22 +138,19 @@ jobs:
 
   build-ext-windows:
     name: Ext x86_64-pc-windows-msvc
+    needs: generate-config
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: .php-guard
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
-
-      - name: Generate config
-        shell: bash
-        run: |
-          mkdir -p .php-guard
-          KEY=$(openssl rand -hex 32)
-          HEADER=$(openssl rand -hex 16)
-          echo "export PHP_GUARD_KEY=\"$KEY\"" > .php-guard/config.env
-          echo "export PHP_GUARD_HEADER=\"$HEADER\"" >> .php-guard/config.env
 
       - name: Build
         run: cargo build -p php-guard-ext --release --target x86_64-pc-windows-msvc
@@ -169,6 +177,11 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: artifacts
 
       - uses: softprops/action-gh-release@v1
         with:
