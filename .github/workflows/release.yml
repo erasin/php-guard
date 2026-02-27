@@ -30,20 +30,18 @@ jobs:
           name: config
           path: .php-guard/config.env
 
-  build-linux:
-    name: Linux ${{ matrix.target }}
+  build-cli-linux:
+    name: CLI Linux ${{ matrix.arch }}
     needs: generate-config
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: x86_64-unknown-linux-gnu
-            cross: false
-            arch: x64
-          - target: aarch64-unknown-linux-gnu
-            cross: true
-            arch: arm64
+          - arch: x64
+            target: x86_64-unknown-linux-gnu
+          - arch: arm64
+            target: aarch64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
 
@@ -57,30 +55,24 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Install cross
-        if: matrix.cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build
-        run: |
-          if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build -p php-guard-cli -p php-guard-ext --release --target ${{ matrix.target }}
-          else
-            cargo build -p php-guard-cli -p php-guard-ext --release --target ${{ matrix.target }}
-          fi
+        run: cross build -p php-guard-cli --release --target ${{ matrix.target }}
 
       - name: Package
         run: |
           mkdir -p dist
           cp target/${{ matrix.target }}/release/php-guard-cli dist/php-guard-linux-${{ matrix.arch }}
-          cp target/${{ matrix.target }}/release/libphp_guard_ext.so dist/php_guard_linux-${{ matrix.arch }}.so
+          chmod +x dist/php-guard-linux-${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.arch }}
+          name: cli-linux-${{ matrix.arch }}
           path: dist/*
 
-  build-windows:
-    name: Windows x64
+  build-cli-windows:
+    name: CLI Windows x64
     needs: generate-config
     runs-on: windows-latest
     steps:
@@ -92,26 +84,97 @@ jobs:
           path: .php-guard
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
 
       - name: Build
-        run: cargo build -p php-guard-cli -p php-guard-ext --release --target x86_64-pc-windows-msvc
+        run: cargo build -p php-guard-cli --release
 
       - name: Package
         run: |
           mkdir dist
-          cp target/x86_64-pc-windows-msvc/release/php-guard-cli.exe dist/php-guard-windows-x64.exe
-          cp target/x86_64-pc-windows-msvc/release/php_guard_ext.dll dist/php_guard_windows-x64.dll
+          cp target/release/php-guard-cli.exe dist/php-guard-windows-x64.exe
 
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-x64
+          name: cli-windows-x64
+          path: dist/*
+
+  build-ext-linux:
+    name: Ext Linux PHP${{ matrix.php }}-x64
+    needs: generate-config
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.2']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: .php-guard
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build -p php-guard-ext --release
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp target/release/libphp_guard_ext.so dist/php_guard_php${{ matrix.php }}-linux-x64.so
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ext-linux-php${{ matrix.php }}
+          path: dist/*
+
+  build-ext-windows:
+    name: Ext Windows PHP${{ matrix.php }}
+    needs: generate-config
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.2']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: .php-guard
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build -p php-guard-ext --release
+
+      - name: Package
+        run: |
+          mkdir dist
+          cp target/release/php_guard_ext.dll dist/php_guard_php${{ matrix.php }}-windows-x64.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ext-windows-php${{ matrix.php }}
           path: dist/*
 
   release:
     name: Release
-    needs: [build-linux, build-windows]
+    needs: [build-cli-linux, build-cli-windows, build-ext-linux, build-ext-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -119,14 +182,47 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          path: artifacts
-          merge-multiple: true
+          name: config
+          path: release
 
       - uses: actions/download-artifact@v4
         with:
-          name: config
-          path: artifacts
+          name: cli-linux-x64
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-arm64
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-windows-x64
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ext-linux-php7.4
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ext-linux-php8.2
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ext-windows-php7.4
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ext-windows-php8.2
+          path: release
+
+      - name: List release files
+        run: ls -la release/
 
       - uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/*
+          files: release/*
