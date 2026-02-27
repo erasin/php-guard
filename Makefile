@@ -1,6 +1,6 @@
 # PHP-Guard Makefile
 
-.PHONY: all build build-cli build-release install test clean help generate-key encrypt check docker-build docker-test
+.PHONY: all build build-cli build-release install test clean help generate-key encrypt check cross-build
 
 help:
 	@echo "PHP-Guard 构建命令"
@@ -15,14 +15,15 @@ help:
 	@echo "  make build-all       - 构建所有组件"
 	@echo "  make install         - 安装扩展到 PHP"
 	@echo ""
+	@echo "交叉编译 CLI:"
+	@echo "  make cross-build            - 交叉编译所有平台 CLI"
+	@echo "  make cross-build-linux-x64  - Linux x64 CLI"
+	@echo "  make cross-build-linux-arm64 - Linux ARM64 CLI (需要 zig)"
+	@echo "  make cross-build-windows-x64 - Windows x64 CLI (需要 mingw-w64)"
+	@echo ""
 	@echo "CLI 工具 (需要先运行 make build-cli):"
 	@echo "  make encrypt F=      - 加密文件 (F=路径)"
 	@echo "  make check F=        - 检查加密状态 (F=路径)"
-	@echo ""
-	@echo "Docker:"
-	@echo "  make docker-build    - Docker 构建 (PHP 8.3)"
-	@echo "  make docker-build V=7.4  - 指定 PHP 版本"
-	@echo "  make docker-test     - Docker 测试"
 	@echo ""
 	@echo "测试:"
 	@echo "  make test            - 运行 Rust 测试"
@@ -95,29 +96,6 @@ install: build-release
 	@echo "启用扩展 (选择一种方式):"
 	@echo "  临时: php -d extension=php_guard script.php"
 	@echo "  永久: echo 'extension=php_guard.so' | sudo tee /etc/php/conf.d/php_guard.ini"
-
-# ============================================
-# Docker
-# ============================================
-PHP_VERSION ?= 8.3
-
-docker-build:
-	@echo "Docker 构建 PHP $(PHP_VERSION)..."
-	docker build --build-arg PHP_VERSION=$(PHP_VERSION) -t php-guard:php$(PHP_VERSION) .
-	@echo ""
-	@echo "提取编译产物:"
-	@echo "  mkdir -p dist"
-	@echo "  docker run --rm -v $$(pwd)/dist:/dist php-guard:php$(PHP_VERSION) cp /build/target/release/libphp_guard_ext.so /dist/php_guard_php$(PHP_VERSION).so"
-
-docker-build-all:
-	@echo "构建所有 PHP 版本..."
-	@for v in 7.4 8.0 8.1 8.2 8.3 8.4; do \
-		echo "=== PHP $$v ==="; \
-		docker build --build-arg PHP_VERSION=$$v -t php-guard:php$$v . || true; \
-	done
-
-docker-test:
-	docker run --rm php-guard:php$(PHP_VERSION) php -d extension=php_guard -r "echo 'Version: ' . php_guard_version() . PHP_EOL;"
 
 # ============================================
 # 测试
