@@ -12,7 +12,7 @@ PHP-Guard 是一个高性能、跨平台的 PHP7+ 代码加密扩展，使用 Ru
 php-guard/
 ├── crates/
 │   ├── php-guard-core/    # 核心库 (加密/解密算法)
-│   ├── php-guard-ext/     # PHP 扩展 (cdylib)
+│   ├── php-guard-ext7/   # PHP 扩展 (cdylib)
 │   └── php-guard-cli/     # CLI 工具
 ├── .php-guard/            # 配置目录 (密钥)
 ├── test/                  # 测试 PHP 文件
@@ -30,13 +30,13 @@ cargo build
 # 构建特定 crate
 cargo build -p php-guard-core
 cargo build -p php-guard-cli
-cargo build -p php-guard-ext
+cargo build -p php-guard-ext7
 
 # 发布构建
 cargo build --release
 
 # 指定 PHP 版本构建扩展
-cargo build -p php-guard-ext --release
+cargo build -p php-guard-ext7 --release
 # 或使用 Makefile
 make build PHP_CONFIG=/opt/remi/php82/root/usr/bin/php-config
 ```
@@ -89,7 +89,7 @@ make lint
 make install
 
 # 或手动安装
-sudo cp target/release/libphp_guard_ext.so $(php-config --extension-dir)/php_guard.so
+sudo cp target/release/libphp_guard_ext7.so $(php-config --extension-dir)/php_guard.so
 cp target/release/php-guard-cli ~/.cargo/bin/
 ```
 
@@ -275,7 +275,7 @@ pub unsafe extern "C" fn php_guard_compile_file(...) { }
 - 配置管理
 - 纯 Rust 逻辑，无 PHP 依赖
 
-### php-guard-ext
+### php-guard-ext7
 - PHP 扩展入口
 - zend_compile_file hook
 - PHP 函数导出

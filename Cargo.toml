@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "crates/php-guard-core",
-    "crates/php-guard-ext",
+    "crates/php-guard-ext7",
     "crates/php-guard-cli",
 ]
 resolver = "2"

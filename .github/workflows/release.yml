@@ -127,12 +127,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Build
-        run: cargo build -p php-guard-ext --release
+        run: cargo build -p php-guard-ext7 --release
 
       - name: Package
         run: |
           mkdir -p dist
-          cp target/release/libphp_guard_ext.so dist/php_guard_linux-${{ matrix.arch }}.so
+          cp target/release/libphp_guard_ext7.so dist/php_guard_linux-${{ matrix.arch }}.so
 
       - uses: actions/upload-artifact@v4
         with:
@@ -160,12 +160,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Build
-        run: cargo build -p php-guard-ext --release
+        run: cargo build -p php-guard-ext7 --release
 
       - name: Package
         run: |
           mkdir dist
-          cp target/release/php_guard_ext.dll dist/php_guard_windows-x64.dll
+          cp target/release/php_guard_ext7.dll dist/php_guard_windows-x64.dll
 
       - uses: actions/upload-artifact@v4
         with:

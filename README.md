@@ -31,7 +31,7 @@ php-guard/
 │   │       ├── config.rs   # 配置 (自动生成)
 │   │       ├── crypto.rs   # 加密算法
 │   │       └── file_handler.rs
-│   ├── php-guard-ext/      # PHP 扩展
+│   ├── php-guard-ext7/     # PHP 扩展
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
@@ -70,10 +70,10 @@ cd php-guard
 source .php-guard/config.env  # Linux/macOS
 
 # 4. 编译扩展
-cargo build -p php-guard-ext --release
+cargo build -p php-guard-ext7 --release
 
 # 5. 安装
-sudo cp target/release/libphp_guard_ext.so $(php-config --extension-dir)/php_guard.so
+sudo cp target/release/libphp_guard_ext7.so $(php-config --extension-dir)/php_guard.so
 ```
 
 ### Docker 构建
@@ -83,7 +83,7 @@ sudo cp target/release/libphp_guard_ext.so $(php-config --extension-dir)/php_gua
 docker build --build-arg PHP_VERSION=8.3 -t php-guard .
 
 # 提取编译产物
-docker run --rm -v $(pwd)/dist:/dist php-guard cp /build/target/release/libphp_guard_ext.so /dist/
+docker run --rm -v $(pwd)/dist:/dist php-guard cp /build/target/release/libphp_guard_ext7.so /dist/
 ```
 
 ## 快速开始
@@ -107,13 +107,13 @@ source .php-guard/config.env
 ### 2. 构建 PHP 扩展
 
 ```bash
-cargo build -p php-guard-ext --release
+cargo build -p php-guard-ext7 --release
 ```
 
 ### 3. 安装扩展
 
 ```bash
-sudo cp target/release/libphp_guard_ext.so $(php-config --extension-dir)/php_guard.so
+sudo cp target/release/libphp_guard_ext7.so $(php-config --extension-dir)/php_guard.so
 echo "extension=php_guard.so" | sudo tee /etc/php/conf.d/php_guard.ini
 ```
 
@@ -212,7 +212,7 @@ cargo test -p php-guard-core
 cargo build -p php-guard-cli --release
 
 # 构建扩展
-cargo build -p php-guard-ext --release
+cargo build -p php-guard-ext7 --release
 
 # 构建所有组件
 cargo build --release

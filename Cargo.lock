@@ -418,7 +418,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "php-guard-ext"
+name = "php-guard-ext7"
 version = "0.1.0"
 dependencies = [
  "libc",

@@ -1,12 +1,12 @@
 [package]
-name = "php-guard-ext"
+name = "php-guard-ext7"
 version = "0.1.0"
 edition = "2024"
 authors = ["erasin <erasinoo@gmail.com>"]
 description = "PHP extension for PHP-Guard source code encryption"
 
 [lib]
-name = "php_guard_ext"
+name = "php_guard_ext7"
 crate-type = ["cdylib"]
 
 [dependencies]
