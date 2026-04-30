@@ -135,6 +135,86 @@ cargo build -p php-guard-cli --release
 ./target/release/php-guard-cli check src/
 ```
 
+## CLI 加密工具
+
+使用 CLI 工具对 PHP 文件进行加密和解密：
+
+```bash
+# 构建 CLI 工具
+cargo build -p php-guard-cli --release
+
+# 加密单个文件
+./target/release/php-guard-cli encrypt src/file.php
+
+# 加密目录（递归）
+./target/release/php-guard-cli encrypt src/
+
+# 解密文件
+./target/release/php-guard-cli decrypt src/file.php
+
+# 解密目录
+./target/release/php-guard-cli decrypt src/
+
+# 检查文件是否已加密
+./target/release/php-guard-cli check src/file.php
+
+# 批量检查目录
+./target/release/php-guard-cli check src/
+```
+
+**参数说明：**
+
+| 命令 | 说明 |
+|------|------|
+| `encrypt <path>` | 加密文件或目录 |
+| `decrypt <path>` | 解密文件或目录 |
+| `check <path>` | 检查文件是否已加密 |
+
+## PHP 扩展临时加载测试
+
+无需永久安装扩展，使用 `php -d` 临时加载扩展测试加密效果：
+
+```bash
+# 临时加载扩展
+php -d extension=target/release/libphp_guard_ext7.so your_script.php
+
+# 临时加载扩展并显示详细信息
+php -d extension=target/release/libphp_guard_ext7.so -d display_startup_errors=1 your_script.php
+
+# 临时加载多个扩展
+php -d extension=target/release/libphp_guard_ext7.so \
+     -d extension=opcache.so \
+     your_script.php
+
+# 使用 phpdbg 调试
+phpdbg -d extension=target/release/libphp_guard_ext7.so your_script.php
+```
+
+**验证扩展是否加载：**
+
+```bash
+php -d extension=target/release/libphp_guard_ext7.so -m | grep php_guard
+```
+
+**完整测试流程：**
+
+```bash
+# 1. 构建扩展
+cargo build -p php-guard-ext7 --release
+
+# 2. 创建测试 PHP 文件
+echo '<?php echo "Hello, World!\n";' > test.php
+
+# 3. 使用 CLI 加密
+./target/release/php-guard-cli encrypt test.php
+
+# 4. 临时加载扩展运行加密文件
+php -d extension=target/release/libphp_guard_ext7.so test.php
+
+# 5. 恢复原文件（解密）
+./target/release/php-guard-cli decrypt test.php
+```
+
 ## 工作原理
 
 1. **编译时配置**: 使用 `scripts/generate-key.sh` 生成密钥和头部标识

@@ -428,6 +428,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "php-guard-ext8"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "php-guard-core",
+ "phper",
+ "tempfile",
+]
+
+[[package]]
 name = "phper"
 version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

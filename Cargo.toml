@@ -2,6 +2,7 @@
 members = [
     "crates/php-guard-core",
     "crates/php-guard-ext7",
+    "crates/php-guard-ext8",
     "crates/php-guard-cli",
 ]
 resolver = "2"
