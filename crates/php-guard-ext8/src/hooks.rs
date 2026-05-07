@@ -5,11 +5,15 @@ use std::ptr;
 
 use phper::sys::{
     self, zend_compile_file, zend_file_handle, zend_stream_type_ZEND_HANDLE_FILENAME,
-    zend_stream_type_ZEND_HANDLE_FP, zend_stream_type_ZEND_HANDLE_STREAM,
+    zend_stream_type_ZEND_HANDLE_FP, zend_stream_type_ZEND_HANDLE_STREAM, zend_string,
 };
 
 use php_guard_core::config::HEADER;
 use php_guard_core::crypto::decode;
+
+const ZEND_STREAM_TYPE_FP: u8 = zend_stream_type_ZEND_HANDLE_FP as u8;
+const ZEND_STREAM_TYPE_STREAM: u8 = zend_stream_type_ZEND_HANDLE_STREAM as u8;
+const ZEND_STREAM_TYPE_FILENAME: u8 = zend_stream_type_ZEND_HANDLE_FILENAME as u8;
 
 static mut ORIGINAL_COMPILE_FILE: Option<
     unsafe extern "C" fn(*mut zend_file_handle, c_int) -> *mut sys::_zend_op_array,
@@ -46,10 +50,16 @@ unsafe fn get_filename_str(handle: &zend_file_handle) -> Option<String> {
         if handle.filename.is_null() {
             return None;
         }
-        match CStr::from_ptr(handle.filename).to_str() {
-            Ok(s) => Some(s.to_string()),
-            Err(_) => None,
+        let filename_ptr = handle.filename as *const zend_string;
+        let zstr = &*filename_ptr;
+        let len = zstr.len;
+        let val = zstr.val.as_ptr();
+        if val.is_null() {
+            return None;
         }
+        std::str::from_utf8(std::slice::from_raw_parts(val as *const u8, len))
+            .ok()
+            .map(|s| s.to_string())
     }
 }
 
@@ -119,13 +129,13 @@ pub unsafe extern "C" fn php_guard_compile_file(
     }
 
     match handle.type_ {
-        zend_stream_type_ZEND_HANDLE_FP => unsafe {
+        ZEND_STREAM_TYPE_FP => unsafe {
             if !handle.handle.fp.is_null() {
                 libc::fclose(handle.handle.fp.cast());
                 handle.handle.fp = ptr::null_mut();
             }
         },
-        zend_stream_type_ZEND_HANDLE_STREAM => unsafe {
+        ZEND_STREAM_TYPE_STREAM => unsafe {
             if !handle.handle.stream.handle.is_null() {
                 if let Some(closer) = handle.handle.stream.closer {
                     closer(handle.handle.stream.handle);
@@ -133,7 +143,7 @@ pub unsafe extern "C" fn php_guard_compile_file(
             }
             handle.handle.stream.handle = ptr::null_mut();
         },
-        zend_stream_type_ZEND_HANDLE_FILENAME => {}
+        ZEND_STREAM_TYPE_FILENAME => {}
         _ => {}
     }
 
@@ -146,7 +156,7 @@ pub unsafe extern "C" fn php_guard_compile_file(
     unsafe {
         handle.handle.fp = new_fp.cast();
     }
-    handle.type_ = zend_stream_type_ZEND_HANDLE_FP;
+    handle.type_ = ZEND_STREAM_TYPE_FP;
     std::mem::forget(temp_file);
 
     unsafe { call_original(file_handle, type_) }

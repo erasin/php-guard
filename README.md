@@ -31,7 +31,13 @@ php-guard/
 │   │       ├── config.rs   # 配置 (自动生成)
 │   │       ├── crypto.rs   # 加密算法
 │   │       └── file_handler.rs
-│   ├── php-guard-ext7/     # PHP 扩展
+│   ├── php-guard-ext7/     # PHP 7.x 扩展
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs
+│   │       ├── hooks.rs    # PHP hook
+│   │       └── php_extension.rs
+│   ├── php-guard-ext8/     # PHP 8.x 扩展
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs
@@ -54,6 +60,12 @@ php-guard/
 
 ## 安装
 
+### 环境要求
+
+- Rust 1.85+
+- libclang (需要设置 `LIBCLANG_PATH=/usr/lib/llvm20/lib`)
+- PHP 7.4+ 或 PHP 8.0+
+
 ### 从源码编译
 
 ```bash
@@ -69,11 +81,21 @@ cd php-guard
 # 3. 加载配置
 source .php-guard/config.env  # Linux/macOS
 
-# 4. 编译扩展
-cargo build -p php-guard-ext7 --release
+# 4. 设置 libclang 路径 (必需)
+export LIBCLANG_PATH=/usr/lib/llvm20/lib
 
-# 5. 安装
-sudo cp target/release/libphp_guard_ext7.so $(php-config --extension-dir)/php_guard.so
+# 5. 编译 PHP 7.4 扩展
+PHP_CONFIG=php-config74 cargo build -p php-guard-ext7 --release
+
+# 6. 编译 PHP 8.2 扩展
+PHP_CONFIG=php-config82 cargo build -p php-guard-ext8 --release
+
+# 7. 编译 CLI 工具
+cargo build -p php-guard-cli --release
+
+# 8. 安装
+sudo cp target/release/libphp_guard_ext7.so $(php-config74 --extension-dir)/php_guard.so
+sudo cp target/release/libphp_guard_ext8.so $(php-config82 --extension-dir)/php_guard.so
 ```
 
 ### Docker 构建
@@ -107,14 +129,26 @@ source .php-guard/config.env
 ### 2. 构建 PHP 扩展
 
 ```bash
-cargo build -p php-guard-ext7 --release
+# 设置 libclang 路径 (必需)
+export LIBCLANG_PATH=/usr/lib/llvm20/lib
+
+# 构建 PHP 7.4 扩展
+PHP_CONFIG=php-config74 cargo build -p php-guard-ext7 --release
+
+# 构建 PHP 8.x 扩展
+PHP_CONFIG=php-config82 cargo build -p php-guard-ext8 --release
 ```
 
 ### 3. 安装扩展
 
 ```bash
-sudo cp target/release/libphp_guard_ext7.so $(php-config --extension-dir)/php_guard.so
-echo "extension=php_guard.so" | sudo tee /etc/php/conf.d/php_guard.ini
+# 安装 PHP 7.4 扩展
+sudo cp target/release/libphp_guard_ext7.so $(php-config74 --extension-dir)/php_guard74.so
+echo "extension=php_guard74.so" | sudo tee /etc/php74/conf.d/php_guard.ini
+
+# 安装 PHP 8.2 扩展
+sudo cp target/release/libphp_guard_ext8.so $(php-config82 --extension-dir)/php_guard82.so
+echo "extension=php_guard82.so" | sudo tee /etc/php82/conf.d/php_guard.ini
 ```
 
 ### 4. 加密 PHP 文件
@@ -282,6 +316,9 @@ echo php_guard_version(); // "0.1.0"
 ## 开发
 
 ```bash
+# 设置 libclang 路径
+export LIBCLANG_PATH=/usr/lib/llvm20/lib
+
 # 运行所有测试
 cargo test
 
@@ -291,8 +328,11 @@ cargo test -p php-guard-core
 # 构建 CLI
 cargo build -p php-guard-cli --release
 
-# 构建扩展
-cargo build -p php-guard-ext7 --release
+# 构建 PHP 7.4 扩展
+PHP_CONFIG=php-config74 cargo build -p php-guard-ext7 --release
+
+# 构建 PHP 8.x 扩展
+PHP_CONFIG=php-config82 cargo build -p php-guard-ext8 --release
 
 # 构建所有组件
 cargo build --release

@@ -97,6 +97,7 @@ install_rust_target() {
 build_for_php() {
     local php_ver=$1
     local target=$2
+    local php_config=$3
     local php_image="php:${php_ver}-cli"
 
     log_info "----------------------------------------"
@@ -114,19 +115,27 @@ build_for_php() {
         bash -c "
             set -e
 
+            # 安装构建依赖
             apt-get update && apt-get install -y \
                 gcc \
                 make \
                 libclang-dev \
                 clang \
+                llvm-dev \
                 rustc \
                 cargo \
                 curl
 
+            # 设置 libclang 路径 (必需)
+            export LIBCLANG_PATH=/usr/lib/llvm-15/lib
+
+            # 安装 Rust 目标
             rustup target add ${target}
 
-            cargo build -p ${CRATE} --target ${target} --release
+            # 构建扩展
+            PHP_CONFIG=${php_config} cargo build -p ${CRATE} --target ${target} --release
 
+            # 复制产物
             cp target/${target}/release/*.so ${OUTPUT_DIR}/${ext_name}
             echo 'Built: ${OUTPUT_DIR}/${ext_name}'
         "
@@ -136,7 +145,8 @@ build_for_php() {
 
 for PHP_VER in "${PHP_VERSIONS[@]}"; do
     for ARCH in "${ARCHS[@]}"; do
-        build_for_php "${PHP_VER}" "${ARCH}"
+        local php_config="php-config${PHP_VER//./}"
+        build_for_php "${PHP_VER}" "${ARCH}" "${php_config}"
     done
 done
 

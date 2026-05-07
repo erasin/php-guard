@@ -12,7 +12,8 @@ PHP-Guard 是一个高性能、跨平台的 PHP7+ 代码加密扩展，使用 Ru
 php-guard/
 ├── crates/
 │   ├── php-guard-core/    # 核心库 (加密/解密算法)
-│   ├── php-guard-ext7/   # PHP 扩展 (cdylib)
+│   ├── php-guard-ext7/    # PHP 7.x 扩展 (cdylib)
+│   ├── php-guard-ext8/    # PHP 8.x 扩展 (cdylib)
 │   └── php-guard-cli/     # CLI 工具
 ├── .php-guard/            # 配置目录 (密钥)
 ├── test/                  # 测试 PHP 文件
@@ -21,46 +22,56 @@ php-guard/
 
 ## 构建命令
 
+### 环境要求
+
+```bash
+# 需要设置 libclang 路径以兼容 bindgen
+export LIBCLANG_PATH=/usr/lib/llvm20/lib
+```
+
 ### 开发构建
 
 ```bash
+# 加载配置
+source .php-guard/config.env
+
 # 构建所有组件
 cargo build
 
 # 构建特定 crate
 cargo build -p php-guard-core
 cargo build -p php-guard-cli
-cargo build -p php-guard-ext7
+cargo build -p php-guard-ext7  # PHP 7.x
+cargo build -p php-guard-ext8  # PHP 8.x
 
 # 发布构建
 cargo build --release
 
 # 指定 PHP 版本构建扩展
-cargo build -p php-guard-ext7 --release
-# 或使用 Makefile
-make build PHP_CONFIG=/opt/remi/php82/root/usr/bin/php-config
+# PHP 7.4
+LIBCLANG_PATH=/usr/lib/llvm20/lib PHP_CONFIG=php-config74 cargo build -p php-guard-ext7 --release
+
+# PHP 8.2
+LIBCLANG_PATH=/usr/lib/llvm20/lib PHP_CONFIG=php-config82 cargo build -p php-guard-ext8 --release
 ```
 
 ### 测试命令
 
 ```bash
-# 运行所有测试
-cargo test
-
-# 运行特定 crate 的测试
-cargo test -p php-guard-core
+# 运行特定 crate 的测试 (需要设置 LIBCLANG_PATH)
+LIBCLANG_PATH=/usr/lib/llvm20/lib cargo test -p php-guard-core
 
 # 运行单个测试 (按名称匹配)
-cargo test -p php-guard-core test_encode_decode
+LIBCLANG_PATH=/usr/lib/llvm20/lib cargo test -p php-guard-core test_encode_decode
 
 # 运行单个测试文件中的测试
-cargo test -p php-guard-core --test encrypt_file
+LIBCLANG_PATH=/usr/lib/llvm20/lib cargo test -p php-guard-core --test encrypt_file
 
 # 显示测试输出
 cargo test -- --nocapture
 
 # 运行特定模块的测试
-cargo test -p php-guard-core crypto::tests
+LIBCLANG_PATH=/usr/lib/llvm20/lib cargo test -p php-guard-core crypto::tests
 ```
 
 ### 代码检查
@@ -276,10 +287,16 @@ pub unsafe extern "C" fn php_guard_compile_file(...) { }
 - 纯 Rust 逻辑，无 PHP 依赖
 
 ### php-guard-ext7
-- PHP 扩展入口
+- PHP 7.x 扩展入口
 - zend_compile_file hook
 - PHP 函数导出
 - 依赖 phper 框架
+
+### php-guard-ext8
+- PHP 8.x 扩展入口
+- zend_compile_file hook
+- PHP 函数导出
+- 与 ext7 接口兼容但使用不同 PHP 版本 API
 
 ### php-guard-cli
 - 命令行工具

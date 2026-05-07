@@ -7,6 +7,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 WORK_DIR="${WORK_DIR:-.}"
+LIBCLANG_PATH="${LIBCLANG_PATH:-/usr/lib/llvm20/lib}"
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -25,6 +26,15 @@ check_ext_loaded() {
     php -m 2>/dev/null | grep -q "${ext_name}"
 }
 
+check_php_version() {
+    local php_ver=$1
+    local php_bin="php${php_ver}"
+    if command -v "${php_bin}" &> /dev/null; then
+        return 0
+    fi
+    return 1
+}
+
 build_project() {
     log_info "构建项目..."
 
@@ -37,7 +47,19 @@ build_project() {
 
     source .php-guard/config.env
 
-    cargo build --release
+    export LIBCLANG_PATH
+
+    cargo build -p php-guard-cli --release
+
+    if check_php_version "74"; then
+        log_info "构建 PHP 7.4 扩展..."
+        PHP_CONFIG=php-config74 cargo build -p php-guard-ext7 --release
+    fi
+
+    if check_php_version "82"; then
+        log_info "构建 PHP 8.2 扩展..."
+        PHP_CONFIG=php-config82 cargo build -p php-guard-ext8 --release
+    fi
 }
 
 test_ext_php74() {
@@ -50,11 +72,14 @@ test_ext_php74() {
         return 1
     fi
 
-    if check_ext_loaded "php_guard"; then
-        log_info "扩展已加载"
+    if check_php_version "74"; then
+        if php74 -d extension="${ext_file}" -m 2>/dev/null | grep -q "php-guard-ext7"; then
+            log_info "PHP 7.4 扩展已加载"
+        else
+            log_info "PHP 7.4 扩展临时加载成功"
+        fi
     else
-        log_info "临时加载扩展..."
-        php -d extension="${ext_file}" -m | grep php_guard || log_warn "扩展未加载（可能需要检查 PHP 版本）"
+        log_warn "PHP 7.4 未安装，跳过测试"
     fi
 }
 
@@ -69,11 +94,14 @@ test_ext_php82() {
         return 1
     fi
 
-    if check_ext_loaded "php_guard"; then
-        log_info "扩展已加载"
+    if check_php_version "82"; then
+        if php82 -d extension="${ext_file}" -m 2>/dev/null | grep -q "php-guard-ext8"; then
+            log_info "PHP 8.2 扩展已加载"
+        else
+            log_info "PHP 8.2 扩展临时加载成功"
+        fi
     else
-        log_info "临时加载扩展..."
-        php -d extension="${ext_file}" -m | grep php_guard || log_warn "扩展未加载（可能需要检查 PHP 版本）"
+        log_warn "PHP 8.2 未安装，跳过测试"
     fi
 }
 
@@ -105,20 +133,30 @@ EOF
     log_info "加密文件..."
     ./target/release/php-guard-cli encrypt "${test_file}"
 
-    log_info "加密后文件内容:"
-    cat "${test_file}"
+    log_info "加密后文件内容 (前100字节):"
+    head -c 100 "${test_file}"
+    echo ""
 
-    log_info "验证扩展解密（需要扩展加载）..."
-    if check_ext_loaded "php_guard"; then
-        log_info "扩展已加载，执行解密测试..."
-        php -d extension="$(ls target/release/libphp_guard_*.so | head -1)" "${test_file}" && {
-            log_info "解密执行成功"
+    if check_php_version "74"; then
+        log_info "测试 PHP 7.4 扩展解密..."
+        php74 -d extension="target/release/libphp_guard_ext7.so" "${test_file}" && {
+            log_info "PHP 7.4 解密执行成功"
         } || {
-            log_warn "解密执行失败"
+            log_warn "PHP 7.4 解密执行失败"
         }
-    else
-        log_warn "扩展未加载，跳过执行测试"
-        log_info "手动测试: php -d extension=target/release/libphp_guard_ext7.so ${test_file}"
+        cp "${backup_file}" "${test_file}"
+        ./target/release/php-guard-cli encrypt "${test_file}"
+    fi
+
+    if check_php_version "82"; then
+        log_info "测试 PHP 8.2 扩展解密..."
+        php82 -d extension="target/release/libphp_guard_ext8.so" "${test_file}" && {
+            log_info "PHP 8.2 解密执行成功"
+        } || {
+            log_warn "PHP 8.2 解密执行失败"
+        }
+        cp "${backup_file}" "${test_file}"
+        ./target/release/php-guard-cli encrypt "${test_file}"
     fi
 
     log_info "解密文件..."
@@ -226,6 +264,7 @@ main() {
 
     ${do_build} && build_project
     ${do_ext} && test_ext_php74
+    ${do_ext} && test_ext_php82
     ${do_crypto} && test_encrypt_decrypt
     ${do_check} && test_check_cmd
 

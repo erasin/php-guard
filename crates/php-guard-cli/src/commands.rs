@@ -15,7 +15,7 @@ pub fn encrypt(paths: &[String], output_dir: Option<&str>) -> Result<()> {
     for path in paths {
         let path_obj = Path::new(path);
         if path_obj.is_file() {
-            match encrypt_single_file(&path_obj, output_dir)? {
+            match encrypt_single_file(path_obj, output_dir)? {
                 true => total += 1,
                 false => skipped += 1,
             }
@@ -90,7 +90,7 @@ pub fn check(paths: &[String]) -> Result<()> {
         let path_obj = Path::new(path);
         if path_obj.is_file() {
             total += 1;
-            if check_single_file(&path_obj)? {
+            if check_single_file(path_obj)? {
                 encrypted_count += 1;
             }
         } else if path_obj.is_dir() {
@@ -144,7 +144,7 @@ pub fn decrypt(paths: &[String], output_dir: Option<&str>) -> Result<()> {
     for path in paths {
         let path_obj = Path::new(path);
         if path_obj.is_file() {
-            match decrypt_single_file(&path_obj, output_dir)? {
+            match decrypt_single_file(path_obj, output_dir)? {
                 true => total += 1,
                 false => skipped += 1,
             }
