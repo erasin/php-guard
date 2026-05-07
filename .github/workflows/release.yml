@@ -172,9 +172,83 @@ jobs:
           name: ext-windows-x64
           path: dist/*
 
+  build-ext8-linux:
+    name: Ext8 Linux ${{ matrix.arch }}
+    needs: generate-config
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: .php-guard
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build -p php-guard-ext8 --release
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp target/release/libphp_guard_ext8.so dist/php_guard_linux-${{ matrix.arch }}_ext8.so
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ext8-linux-${{ matrix.arch }}
+          path: dist/*
+
+  build-ext8-windows:
+    name: Ext8 Windows x64
+    needs: generate-config
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: config
+          path: .php-guard
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        run: cargo build -p php-guard-ext8 --release
+
+      - name: Package
+        run: |
+          mkdir dist
+          cp target/release/php_guard_ext8.dll dist/php_guard_windows-x64_ext8.dll
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ext8-windows-x64
+          path: dist/*
+
   release:
     name: Release
-    needs: [build-cli-linux, build-cli-windows, build-ext-linux, build-ext-windows]
+    needs: [build-cli-linux, build-cli-windows, build-ext-linux, build-ext-windows, build-ext8-linux, build-ext8-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
@@ -213,6 +287,21 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ext-windows-x64
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ext8-linux-x64
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ext8-linux-arm64
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ext8-windows-x64
           path: release
 
       - name: List release files
