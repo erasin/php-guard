@@ -331,6 +331,9 @@ cargo build -p php-guard-cli --release
 # 构建 PHP 7.4 扩展
 PHP_CONFIG=php-config74 cargo build -p php-guard-ext7 --release
 
+# 构建 PHP 7.4 扩展 glibc 2.17 for centos7
+PHP_CONFIG=php-config74 cargo zigbuild -p php-guard-ext7 --release --target x86_64-unknown-linux-gnu.2.17
+
 # 构建 PHP 8.x 扩展
 PHP_CONFIG=php-config82 cargo build -p php-guard-ext8 --release
 

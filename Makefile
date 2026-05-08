@@ -18,8 +18,19 @@ config:
 # ============================================
 # 构建
 # ============================================
+export LIBCLANG_PATH = /usr/lib/llvm20/lib
+
 build:
 	cargo build --release
+
+build-ext7:
+	PHP_CONFIG=php-config74 cargo build -p php-guard-ext7 --release
+
+build-ext8:
+	PHP_CONFIG=php-config82 cargo build -p php-guard-ext8 --release
+
+build-ext7-centos7:
+	PHP_CONFIG=php-config74 cargo zigbuild -p php-guard-ext7 --release --target x86_64-unknown-linux-gnu.2.17
 
 # ============================================
 # 安装
